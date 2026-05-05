@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "blender": {
+      "command": "blender-mcp",
+      "args": [],
+      "env": {
+        "BLENDER_MCP_TOKEN": "PASTE_YOUR_TOKEN_HERE"
+      }
+    }
+  }
+}

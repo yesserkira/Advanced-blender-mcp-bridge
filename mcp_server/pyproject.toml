@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "blender-mcp"
+version = "0.1.0"
+description = "MCP server bridging AI assistants to Blender"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "BlenderVscode contributors" },
+]
+dependencies = [
+    "mcp>=1.2",
+    "pydantic>=2",
+    "websockets==12.0",
+    "keyring",
+    "python-ulid",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+    "jsonschema",
+]
+
+[project.scripts]
+blender-mcp = "blender_mcp.server:main"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

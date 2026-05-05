@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/command.schema.json",
+  "title": "BlenderMCP Command",
+  "description": "A command sent from the MCP server to the Blender add-on over WebSocket.",
+  "type": "object",
+  "required": ["id", "op", "auth"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique command identifier (ULID recommended).",
+      "minLength": 1
+    },
+    "op": {
+      "type": "string",
+      "description": "Operation name, e.g. 'ping', 'scene.get', 'mesh.create_primitive'.",
+      "minLength": 1
+    },
+    "args": {
+      "type": "object",
+      "description": "Operation-specific arguments. Defaults to empty object.",
+      "default": {}
+    },
+    "auth": {
+      "type": "string",
+      "description": "Auth token for this connection.",
+      "minLength": 1
+    },
+    "meta": {
+      "type": "object",
+      "description": "Optional metadata about the caller.",
+      "properties": {
+        "client": {
+          "type": "string",
+          "description": "Client identifier, e.g. 'mcp-server/0.1'."
+        },
+        "user": {
+          "type": "string",
+          "description": "AI assistant name, e.g. 'copilot', 'claude'."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

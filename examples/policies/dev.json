@@ -1,0 +1,12 @@
+{
+  "allowed_tools": null,
+  "denied_tools": [],
+  "allowed_roots": [],
+  "max_polys": 5000000,
+  "max_resolution": 4096,
+  "snapshot_threshold": 10,
+  "confirm_required": ["execute_python"],
+  "rate_limit": {
+    "mutating_ops_per_10s": 100
+  }
+}
