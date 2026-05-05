@@ -117,6 +117,33 @@ The `safety/validator.py` module MUST:
 - The MCP server only holds the Blender WS auth token (via OS keyring or env var).
 - AI model API keys live exclusively in the AI client (Copilot, Claude, etc.).
 
+## v2.1 implementation status
+
+Status of each rule as of MCP server 2.1 / extension 2.1.0-rc2:
+
+| Rule | Status | Notes |
+|---|---|---|
+| 1 — Loopback binding | Implemented | Add-on WS + extension approval HTTP both bind `127.0.0.1`; non-loopback peers rejected at handler. |
+| 2 — Frame validation | Implemented | RFC 6455 client/server enforce text frames, control-frame size, mask-bit. |
+| 3 — Token secrecy | Implemented | `BLENDER_MCP_TOKEN` env var or OS keyring; never logged. |
+| 4 — AST validation | Implemented | `safety/validator.py`; `mode='trusted'` opt-in only. |
+| 5 — Path jail | Implemented | `policy.validate_path()`. |
+| 6 — Rate limiting | **Implemented in v2.1** | Token bucket in `mcp_server/blender_mcp/rate_limit.py`. Default 50 mutating ops / 10 s. Returns `error: RATE_LIMIT` with `retry_after`. |
+| 7 — Resource caps | Implemented | Polygon estimator (v2.1) for `create_objects`; runtime check via `Policy.check_poly_count`. |
+| 8 — Pre-transaction snapshots | **Persistent checkpoints in v2.1** | Manual via `create_checkpoint`; auto-snapshot on transaction-size threshold tracked separately. Storage: `%LOCALAPPDATA%/BlenderMCP/checkpoints/`. |
+| 9 — Untrusted string markers | Partial | Convention documented; not all read-tools wrap yet. |
+| 10 — Secret isolation | Implemented | Approval CSRF token also kept out of logs. |
+
+### Approval flow CSRF
+
+The VS Code extension's approval HTTP endpoint requires:
+- `POST /approve` only (404 elsewhere)
+- `Content-Type: application/json`
+- `X-CSRF: <random hex>` header (constant-time compared against the token written to the discovery file at `%LOCALAPPDATA%\BlenderMCP\approval.json`)
+- Loopback peer (`127.0.0.1` or `::1`) — non-loopback returns 403
+
+The CSRF token is regenerated on every extension activation; stale discovery files (dead pid) are cleaned up automatically.
+
 ## Pen-test checklist
 
 Use this checklist when testing security. Each item maps to a rule above.
