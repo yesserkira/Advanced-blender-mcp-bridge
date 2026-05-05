@@ -178,8 +178,7 @@ async def test_mesh_edit_defaults(fake_blender):
 @pytest.mark.asyncio
 async def test_mesh_edit_unknown_op(fake_blender):
     """mesh.edit with unknown operation should fail."""
-    # The fake server doesn't have a handler for mesh.edit by default,
-    # so unknown op at the WS level should raise BlenderError.
+    del fake_blender._handlers["mesh.edit"]
     client = BlenderWS(
         url=f"ws://{fake_blender.host}:{fake_blender.port}",
         token="any-token",

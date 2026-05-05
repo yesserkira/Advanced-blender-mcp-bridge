@@ -75,6 +75,7 @@ async def test_exec_python_with_timeout(fake_blender):
 @pytest.mark.asyncio
 async def test_exec_python_unknown_op(fake_blender):
     """Calling exec.python without a handler should return NOT_FOUND."""
+    del fake_blender._handlers["exec.python"]
     client = BlenderWS(
         url=f"ws://{fake_blender.host}:{fake_blender.port}",
         token="any-token",

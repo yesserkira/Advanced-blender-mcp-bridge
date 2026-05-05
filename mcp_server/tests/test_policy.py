@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -63,10 +64,11 @@ class TestPolicyPath:
 
     def test_path_inside_root_allowed(self):
         with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_resolved = str(Path(tmpdir).resolve())
             policy = Policy({"allowed_roots": [tmpdir]})
             inner = os.path.join(tmpdir, "subdir", "file.txt")
             result = policy.validate_path(inner)
-            assert str(result).startswith(str(tmpdir))
+            assert str(result).startswith(tmpdir_resolved)
 
     def test_path_outside_root_denied(self):
         with tempfile.TemporaryDirectory() as tmpdir:

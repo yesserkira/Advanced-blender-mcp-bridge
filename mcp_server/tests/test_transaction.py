@@ -76,6 +76,7 @@ async def test_transaction_rollback(fake_blender):
 @pytest.mark.asyncio
 async def test_transaction_unknown_op(fake_blender):
     """Calling transaction.begin without a handler should return NOT_FOUND."""
+    del fake_blender._handlers["transaction.begin"]
     client = BlenderWS(
         url=f"ws://{fake_blender.host}:{fake_blender.port}",
         token="any-token",

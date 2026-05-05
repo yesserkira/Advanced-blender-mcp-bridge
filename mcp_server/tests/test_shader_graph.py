@@ -152,7 +152,7 @@ async def test_shader_graph_preserve_existing(fake_blender):
 @pytest.mark.asyncio
 async def test_shader_graph_unknown_op(fake_blender):
     """shader.set_graph without handler registered returns NOT_FOUND error."""
-    # Don't register a handler — default fake server has no shader.set_graph
+    del fake_blender._handlers["shader.set_graph"]
     client = BlenderWS(
         url=f"ws://{fake_blender.host}:{fake_blender.port}",
         token="any-token",
