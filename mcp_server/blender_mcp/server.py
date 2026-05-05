@@ -56,7 +56,7 @@ async def _call(op: str, args: dict | None = None, timeout: float = 30.0) -> dic
     except BlenderError as e:
         return {"error": e.code, "message": str(e)}
     except PolicyDenied as e:
-        return {"error": "POLICY_DENIED", "message": str(e), "hint": e.hint}
+        return {"error": getattr(e, "code", "POLICY_DENIED"), "message": str(e), "hint": e.hint}
 
 
 def _maybe_batch(items_or_arg, single_arg: dict, common: dict | None = None) -> dict:

@@ -7,7 +7,32 @@ import json
 import logging
 from pathlib import Path
 
+from .rate_limit import TokenBucket
+
 logger = logging.getLogger("blender_mcp.policy")
+
+# Tools that observe Blender state without changing it. Excluded from the
+# mutating-rate-limiter so a status panel polling `ping` cannot be throttled.
+READ_ONLY_TOOLS: frozenset[str] = frozenset(
+    {
+        "ping",
+        "get_scene_info",
+        "get_object_info",
+        "get_audit_log",
+        "get_viewport_screenshot",
+        "list_assets",
+        "list_collections",
+        "list_materials",
+        "scene_diff",
+        "get_render_settings",
+    }
+)
+
+
+def is_mutating(tool_name: str) -> bool:
+    """True if calling `tool_name` may modify the Blender scene."""
+    return tool_name not in READ_ONLY_TOOLS
+
 
 _DEFAULT_POLICY = {
     "allowed_tools": None,  # None = all allowed
@@ -18,7 +43,8 @@ _DEFAULT_POLICY = {
     "snapshot_threshold": 5,
     "confirm_required": ["execute_python", "delete_object"],
     "rate_limit": {
-        "mutating_ops_per_10s": 50,
+        "mutating_ops_per_window": 50,
+        "window_seconds": 10.0,
     },
 }
 
@@ -26,9 +52,24 @@ _DEFAULT_POLICY = {
 class PolicyDenied(Exception):
     """Raised when a tool call is denied by policy."""
 
-    def __init__(self, message: str, hint: str | None = None):
+    def __init__(self, message: str, hint: str | None = None, code: str = "POLICY_DENIED"):
         super().__init__(message)
         self.hint = hint
+        self.code = code
+
+
+class RateLimitDenied(PolicyDenied):
+    """Raised when the mutating-ops token bucket is empty."""
+
+    def __init__(self, tool: str, capacity: int, window_seconds: float, retry_after: float):
+        super().__init__(
+            f"Rate limit exceeded for '{tool}': max {capacity} mutating ops per "
+            f"{window_seconds:.1f}s. Retry after ~{retry_after:.2f}s.",
+            hint=f"Wait ~{retry_after:.2f}s, or raise rate_limit.mutating_ops_per_window in .blendermcp.json.",
+            code="RATE_LIMIT",
+        )
+        self.tool = tool
+        self.retry_after = retry_after
 
 
 class Policy:
@@ -46,7 +87,23 @@ class Policy:
         self.max_resolution: int = cfg.get("max_resolution", 4096)
         self.snapshot_threshold: int = cfg.get("snapshot_threshold", 5)
         self.confirm_required: list[str] = cfg.get("confirm_required", [])
-        self.rate_limit: dict = cfg.get("rate_limit", {"mutating_ops_per_10s": 50})
+        self.rate_limit: dict = cfg.get(
+            "rate_limit",
+            {"mutating_ops_per_window": 50, "window_seconds": 10.0},
+        )
+        # Backwards-compat: accept legacy "mutating_ops_per_10s" key.
+        if "mutating_ops_per_10s" in self.rate_limit and "mutating_ops_per_window" not in self.rate_limit:
+            self.rate_limit["mutating_ops_per_window"] = self.rate_limit["mutating_ops_per_10s"]
+            self.rate_limit.setdefault("window_seconds", 10.0)
+        self._bucket: TokenBucket | None = None
+
+    def get_rate_limiter(self) -> TokenBucket:
+        """Lazily create a TokenBucket sized from policy.rate_limit."""
+        if self._bucket is None:
+            cap = int(self.rate_limit.get("mutating_ops_per_window", 50))
+            window = float(self.rate_limit.get("window_seconds", 10.0))
+            self._bucket = TokenBucket(capacity=max(1, cap), window_seconds=max(0.1, window))
+        return self._bucket
 
     @classmethod
     def load(cls, path: str | None = None) -> "Policy":
@@ -72,7 +129,7 @@ class Policy:
             return cls()
 
     def require(self, tool_name: str):
-        """Check if a tool is allowed. Raises PolicyDenied if not."""
+        """Check if a tool is allowed. Raises PolicyDenied / RateLimitDenied if not."""
         if tool_name in self.denied_tools:
             raise PolicyDenied(
                 f"Tool '{tool_name}' is denied by policy",
@@ -84,6 +141,18 @@ class Policy:
                 f"Tool '{tool_name}' is not in the allowed list",
                 hint="Add to allowed_tools in .blendermcp.json",
             )
+
+        # Rate-limit mutating tools.
+        if is_mutating(tool_name):
+            bucket = self.get_rate_limiter()
+            allowed, retry_after = bucket.take(1)
+            if not allowed:
+                raise RateLimitDenied(
+                    tool=tool_name,
+                    capacity=bucket.capacity,
+                    window_seconds=bucket.window_seconds,
+                    retry_after=retry_after,
+                )
 
     def confirm_required_for(self, tool_name: str) -> bool:
         """Check if a tool requires user confirmation."""
