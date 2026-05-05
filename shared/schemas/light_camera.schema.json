@@ -1,0 +1,204 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/light_camera.schema.json",
+  "title": "BlenderMCP Light & Camera Operations",
+  "description": "Schemas for light.create, camera.create, and camera.set_active operations.",
+  "definitions": {
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "light_create_args": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "POINT",
+            "SUN",
+            "SPOT",
+            "AREA"
+          ],
+          "description": "Type of light to create."
+        },
+        "name": {
+          "type": "string",
+          "description": "Optional name for the light object."
+        },
+        "location": {
+          "$ref": "#/definitions/vec3",
+          "description": "World-space position [x, y, z]. Default [0, 0, 0].",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "energy": {
+          "type": "number",
+          "description": "Light power. Default 1000 for POINT/SPOT/AREA, 1.0 for SUN."
+        },
+        "color": {
+          "$ref": "#/definitions/vec3",
+          "description": "RGB color [r, g, b] in 0-1 range. Default [1, 1, 1].",
+          "default": [
+            1,
+            1,
+            1
+          ]
+        },
+        "radius": {
+          "type": "number",
+          "description": "Shadow soft size / radius."
+        },
+        "spot_size": {
+          "type": "number",
+          "description": "Spot cone angle in radians (SPOT only)."
+        },
+        "spot_blend": {
+          "type": "number",
+          "description": "Spot edge softness 0-1 (SPOT only)."
+        },
+        "size": {
+          "type": "number",
+          "description": "Area light size (AREA only)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "light_create_result": {
+      "type": "object",
+      "required": [
+        "name",
+        "type",
+        "location",
+        "energy"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Assigned object name."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "POINT",
+            "SUN",
+            "SPOT",
+            "AREA"
+          ]
+        },
+        "location": {
+          "$ref": "#/definitions/vec3"
+        },
+        "energy": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "camera_create_args": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Optional name for the camera object."
+        },
+        "location": {
+          "$ref": "#/definitions/vec3",
+          "description": "World-space position [x, y, z]. Default [0, 0, 5].",
+          "default": [
+            0,
+            0,
+            5
+          ]
+        },
+        "rotation_euler": {
+          "$ref": "#/definitions/vec3",
+          "description": "Euler rotation [rx, ry, rz] in radians. Default [0, 0, 0].",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "lens": {
+          "type": "number",
+          "description": "Focal length in mm. Default 50.",
+          "default": 50
+        },
+        "clip_start": {
+          "type": "number",
+          "description": "Near clipping distance. Default 0.1.",
+          "default": 0.1
+        },
+        "clip_end": {
+          "type": "number",
+          "description": "Far clipping distance. Default 1000.",
+          "default": 1000
+        },
+        "sensor_width": {
+          "type": "number",
+          "description": "Sensor width in mm. Default 36.",
+          "default": 36
+        }
+      },
+      "additionalProperties": false
+    },
+    "camera_create_result": {
+      "type": "object",
+      "required": [
+        "name",
+        "lens",
+        "location"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Assigned object name."
+        },
+        "lens": {
+          "type": "number",
+          "description": "Focal length in mm."
+        },
+        "location": {
+          "$ref": "#/definitions/vec3"
+        }
+      },
+      "additionalProperties": false
+    },
+    "camera_set_active_args": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of an existing camera object to set as active."
+        }
+      },
+      "additionalProperties": false
+    },
+    "camera_set_active_result": {
+      "type": "object",
+      "required": [
+        "active_camera"
+      ],
+      "properties": {
+        "active_camera": {
+          "type": "string",
+          "description": "Name of the now-active camera."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

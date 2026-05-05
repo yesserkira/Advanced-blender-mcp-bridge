@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/exec_python_error.schema.json",
+  "title": "BlenderMCP Execute Python Error Response",
+  "description": "Enhanced error response from exec.python with self-healing hints.",
+  "type": "object",
+  "required": [
+    "executed",
+    "error"
+  ],
+  "properties": {
+    "executed": {
+      "type": "boolean",
+      "const": false,
+      "description": "Always false for error responses."
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message string."
+    },
+    "error_type": {
+      "type": "string",
+      "description": "Python exception class name, e.g. 'NameError', 'AttributeError'."
+    },
+    "traceback": {
+      "type": "string",
+      "description": "Full Python traceback string."
+    },
+    "failed_line": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "The line of user code that failed.",
+      "properties": {
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based line number in the submitted code."
+        },
+        "text": {
+          "type": "string",
+          "description": "The source text of the failed line."
+        }
+      },
+      "required": [
+        "line",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "suggestion": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "A short suggestion for fixing the error, or null if none available."
+    }
+  },
+  "additionalProperties": false
+}

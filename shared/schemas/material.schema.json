@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/material.schema.json",
+  "title": "BlenderMCP Material Operations",
+  "description": "Schemas for material.create_pbr and material.assign operations.",
+  "definitions": {
+    "color_rgba": {
+      "type": "array",
+      "description": "RGBA color as [r, g, b, a] with values 0-1.",
+      "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "create_pbr_args": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Material name."
+        },
+        "base_color": {
+          "$ref": "#/definitions/color_rgba",
+          "description": "Base color. Default [0.8, 0.8, 0.8, 1.0]."
+        },
+        "metallic": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.0,
+          "description": "Metallic factor."
+        },
+        "roughness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5,
+          "description": "Roughness factor."
+        },
+        "emission_color": {
+          "$ref": "#/definitions/color_rgba",
+          "description": "Emission color (optional)."
+        },
+        "emission_strength": {
+          "type": "number",
+          "description": "Emission strength (optional)."
+        },
+        "alpha": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Alpha transparency (optional)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "create_pbr_response": {
+      "type": "object",
+      "required": [
+        "name",
+        "node_tree",
+        "inputs_set"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Created material name."
+        },
+        "node_tree": {
+          "type": "string",
+          "description": "Node tree type, e.g. 'Principled BSDF'."
+        },
+        "inputs_set": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of input names that were set."
+        }
+      },
+      "additionalProperties": false
+    },
+    "assign_args": {
+      "type": "object",
+      "required": [
+        "object_name",
+        "material_name"
+      ],
+      "properties": {
+        "object_name": {
+          "type": "string",
+          "description": "Target object name."
+        },
+        "material_name": {
+          "type": "string",
+          "description": "Material to assign."
+        },
+        "slot": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Material slot index."
+        }
+      },
+      "additionalProperties": false
+    },
+    "assign_response": {
+      "type": "object",
+      "required": [
+        "object",
+        "material",
+        "slot"
+      ],
+      "properties": {
+        "object": {
+          "type": "string",
+          "description": "Object name."
+        },
+        "material": {
+          "type": "string",
+          "description": "Assigned material name."
+        },
+        "slot": {
+          "type": "integer",
+          "description": "Slot index used."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

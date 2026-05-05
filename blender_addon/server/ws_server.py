@@ -11,6 +11,7 @@ import threading
 import time
 
 from . import main_thread
+from .progress import ProgressReporter
 
 logger = logging.getLogger("blendermcp.ws")
 
@@ -85,7 +86,13 @@ async def _handler(websocket):
             def _resolve(result, f=future):
                 _loop.call_soon_threadsafe(f.set_result, result)
 
-            main_thread.submit(msg, _resolve)
+            # Create progress callback for ops that support it
+            progress_cb = None
+            if op == "render.viewport_screenshot":
+                reporter = ProgressReporter(websocket, _loop, msg_id)
+                progress_cb = reporter.send
+
+            main_thread.submit(msg, _resolve, progress_callback=progress_cb)
 
             try:
                 result = await asyncio.wait_for(future, timeout=30.0)

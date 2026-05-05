@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/animation.schema.json",
+  "title": "BlenderMCP Animation Keyframe",
+  "description": "Schemas for animation.keyframe args and response.",
+  "definitions": {
+    "args": {
+      "type": "object",
+      "required": [
+        "object_name",
+        "data_path",
+        "frame"
+      ],
+      "properties": {
+        "object_name": {
+          "type": "string",
+          "description": "Name of the target object.",
+          "minLength": 1
+        },
+        "data_path": {
+          "type": "string",
+          "description": "Property path, e.g. 'location', 'rotation_euler', 'scale'.",
+          "minLength": 1
+        },
+        "frame": {
+          "type": "integer",
+          "description": "Frame number to insert the keyframe at."
+        },
+        "value": {
+          "description": "Optional value to set before inserting the keyframe.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          ]
+        },
+        "index": {
+          "type": "integer",
+          "description": "Channel index. -1 for all channels (default).",
+          "default": -1
+        }
+      },
+      "additionalProperties": false
+    },
+    "response": {
+      "type": "object",
+      "required": [
+        "object",
+        "data_path",
+        "frame",
+        "value"
+      ],
+      "properties": {
+        "object": {
+          "type": "string",
+          "description": "Name of the object."
+        },
+        "data_path": {
+          "type": "string",
+          "description": "Property path that was keyframed."
+        },
+        "frame": {
+          "type": "integer",
+          "description": "Frame number of the keyframe."
+        },
+        "value": {
+          "description": "Current value of the property at the keyframe.",
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

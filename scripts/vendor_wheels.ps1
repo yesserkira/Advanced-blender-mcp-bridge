@@ -38,7 +38,8 @@ $src = Join-Path $TempDir "websockets"
 $dst = Join-Path $VendorDir "websockets"
 if (Test-Path $src) {
     Move-Item -Path $src -Destination $dst
-} else {
+}
+else {
     Write-Error "websockets directory not found after extraction"
     exit 1
 }

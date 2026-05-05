@@ -1,19 +1,19 @@
 {
-  "servers": {
-    "blender": {
-      "command": "blender-mcp",
-      "args": [],
-      "env": {
-        "BLENDER_MCP_TOKEN": "${input:blender_token}"
-      }
-    }
-  },
-  "inputs": [
-    {
-      "id": "blender_token",
-      "type": "promptString",
-      "description": "Blender MCP auth token (copy from Blender N-panel > MCP tab)",
-      "password": true
-    }
-  ]
+    "servers": {
+        "blender": {
+            "command": "blender-mcp",
+            "args": [],
+            "env": {
+                "BLENDER_MCP_TOKEN": "${input:blender_token}"
+            }
+        }
+    },
+    "inputs": [
+        {
+            "id": "blender_token",
+            "type": "promptString",
+            "description": "Blender MCP auth token (copy from Blender N-panel > MCP tab)",
+            "password": true
+        }
+    ]
 }

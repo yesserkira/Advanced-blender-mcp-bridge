@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/transform.schema.json",
+  "title": "BlenderMCP Object Transform",
+  "description": "Schemas for object.transform args and response.",
+  "definitions": {
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "args": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the object to transform.",
+          "minLength": 1
+        },
+        "location": {
+          "$ref": "#/definitions/vec3",
+          "description": "New [x, y, z] location."
+        },
+        "rotation_euler": {
+          "$ref": "#/definitions/vec3",
+          "description": "New [x, y, z] Euler rotation in radians."
+        },
+        "scale": {
+          "$ref": "#/definitions/vec3",
+          "description": "New [x, y, z] scale."
+        }
+      },
+      "additionalProperties": false
+    },
+    "response": {
+      "type": "object",
+      "required": [
+        "name",
+        "location",
+        "rotation_euler",
+        "scale"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Object name."
+        },
+        "location": {
+          "$ref": "#/definitions/vec3",
+          "description": "Current location after transform."
+        },
+        "rotation_euler": {
+          "$ref": "#/definitions/vec3",
+          "description": "Current Euler rotation after transform."
+        },
+        "scale": {
+          "$ref": "#/definitions/vec3",
+          "description": "Current scale after transform."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

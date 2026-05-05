@@ -26,3 +26,12 @@ def load_all():
     from . import scene  # noqa: F401
     from . import mesh  # noqa: F401
     from . import render  # noqa: F401
+    from . import material  # noqa: F401
+    from . import light_camera  # noqa: F401
+    from . import modifier  # noqa: F401
+    from . import animation  # noqa: F401
+    from . import exec_python  # noqa: F401
+    from . import asset_import  # noqa: F401
+    from . import geonodes  # noqa: F401
+    from . import shader_graph  # noqa: F401
+    from ..safety import checkpoint  # noqa: F401

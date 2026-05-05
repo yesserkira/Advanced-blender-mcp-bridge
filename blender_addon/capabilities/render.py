@@ -11,7 +11,7 @@ from . import register_capability
 MAX_RESOLUTION = 4096
 
 
-def render_viewport_screenshot(args: dict) -> dict:
+def render_viewport_screenshot(args: dict, progress_callback=None) -> dict:
     """Capture the viewport as a PNG image and return as base64.
 
     Args:
@@ -19,6 +19,8 @@ def render_viewport_screenshot(args: dict) -> dict:
             "w": int - width in pixels (default 1024, max 4096)
             "h": int - height in pixels (default 1024, max 4096)
         }
+        progress_callback: Optional callable(percent: int, message: str) -> None
+            for streaming progress events.
     """
     w = args.get("w", 1024)
     h = args.get("h", 1024)
@@ -43,6 +45,9 @@ def render_viewport_screenshot(args: dict) -> dict:
         scene.render.resolution_percentage = 100
         scene.render.image_settings.file_format = "PNG"
 
+        if progress_callback:
+            progress_callback(10, "Setting up render")
+
         # Create temp file for the render
         tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         tmp_path = tmp.name
@@ -50,20 +55,31 @@ def render_viewport_screenshot(args: dict) -> dict:
 
         scene.render.filepath = tmp_path
 
+        if progress_callback:
+            progress_callback(50, "Rendering")
+
         # Render viewport (opengl)
         bpy.ops.render.opengl(write_still=True)
+
+        if progress_callback:
+            progress_callback(90, "Encoding")
 
         # Read and encode
         with open(tmp_path, "rb") as f:
             png_bytes = f.read()
 
-        return {
+        result = {
             "image_base64": base64.b64encode(png_bytes).decode("ascii"),
             "mime": "image/png",
             "width": w,
             "height": h,
             "size_bytes": len(png_bytes),
         }
+
+        if progress_callback:
+            progress_callback(100, "Done")
+
+        return result
     finally:
         # Restore settings
         scene.render.resolution_x = old_x

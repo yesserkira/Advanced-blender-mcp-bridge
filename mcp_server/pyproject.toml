@@ -4,13 +4,23 @@ build-backend = "hatchling.build"
 
 [project]
 name = "blender-mcp"
-version = "0.1.0"
+version = "1.0.0"
 description = "MCP server bridging AI assistants to Blender"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [
     { name = "BlenderVscode contributors" },
+]
+keywords = ["blender", "mcp", "model-context-protocol", "ai", "3d"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 dependencies = [
     "mcp>=1.2",
@@ -29,8 +39,20 @@ dev = [
     "jsonschema",
 ]
 
+[project.urls]
+Homepage = "https://github.com/user/BlenderVscode"
+Repository = "https://github.com/user/BlenderVscode"
+Documentation = "https://github.com/user/BlenderVscode/tree/main/docs"
+Issues = "https://github.com/user/BlenderVscode/issues"
+
 [project.scripts]
 blender-mcp = "blender_mcp.server:main"
+
+[tool.hatch.build.targets.sdist]
+packages = ["blender_mcp"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["blender_mcp"]
 
 [tool.ruff]
 target-version = "py311"

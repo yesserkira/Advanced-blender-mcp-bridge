@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  server-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      - name: Install dependencies
+        working-directory: mcp_server
+        run: uv sync --all-extras
+      - name: Lint
+        working-directory: mcp_server
+        run: uv run ruff check blender_mcp tests
+      - name: Type check
+        working-directory: mcp_server
+        run: uv run mypy blender_mcp --ignore-missing-imports
+      - name: Test
+        working-directory: mcp_server
+        run: uv run pytest -q --tb=short
+
+  addon-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint add-on
+        run: ruff check blender_addon --ignore E402
+
+  extension-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        working-directory: vscode_extension
+        run: npm ci
+      - name: Compile
+        working-directory: vscode_extension
+        run: npm run compile
+
+  schema-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install jsonschema
+        run: pip install jsonschema
+      - name: Validate schemas
+        run: |
+          python -c "
+          import json, jsonschema, glob
+          for f in glob.glob('shared/schemas/*.schema.json'):
+              with open(f) as fh:
+                  schema = json.load(fh)
+              jsonschema.Draft7Validator.check_schema(schema)
+              print(f'  ✓ {f}')
+          "

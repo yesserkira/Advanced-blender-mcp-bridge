@@ -4,7 +4,10 @@
   "title": "BlenderMCP Scene Info",
   "description": "Scene information returned by scene.get at various detail levels.",
   "type": "object",
-  "required": ["scene", "frame"],
+  "required": [
+    "scene",
+    "frame"
+  ],
   "properties": {
     "scene": {
       "type": "string",
@@ -12,31 +15,54 @@
     },
     "frame": {
       "type": "object",
-      "required": ["current", "start", "end", "fps"],
+      "required": [
+        "current",
+        "start",
+        "end",
+        "fps"
+      ],
       "properties": {
-        "current": { "type": "integer" },
-        "start": { "type": "integer" },
-        "end": { "type": "integer" },
-        "fps": { "type": "number" }
+        "current": {
+          "type": "integer"
+        },
+        "start": {
+          "type": "integer"
+        },
+        "end": {
+          "type": "integer"
+        },
+        "fps": {
+          "type": "number"
+        }
       },
       "additionalProperties": false
     },
     "object_counts": {
       "type": "object",
       "description": "Count of objects per type (summary+).",
-      "additionalProperties": { "type": "integer" }
+      "additionalProperties": {
+        "type": "integer"
+      }
     },
     "active_camera": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Name of the active camera."
     },
     "selection": {
       "type": "array",
       "description": "Names of selected objects (standard+).",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "active": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Name of the active object (standard+)."
     },
     "objects": {
@@ -44,42 +70,73 @@
       "description": "Per-object details (standard+).",
       "items": {
         "type": "object",
-        "required": ["name", "type"],
+        "required": [
+          "name",
+          "type"
+        ],
         "properties": {
-          "name": { "type": "string" },
+          "name": {
+            "type": "string"
+          },
           "type": {
             "type": "string",
-            "enum": ["MESH", "CURVE", "SURFACE", "META", "FONT", "CURVES",
-                     "POINTCLOUD", "VOLUME", "GREASEPENCIL", "GPENCIL",
-                     "ARMATURE", "LATTICE", "EMPTY", "LIGHT", "LIGHT_PROBE",
-                     "CAMERA", "SPEAKER"]
+            "enum": [
+              "MESH",
+              "CURVE",
+              "SURFACE",
+              "META",
+              "FONT",
+              "CURVES",
+              "POINTCLOUD",
+              "VOLUME",
+              "GREASEPENCIL",
+              "GPENCIL",
+              "ARMATURE",
+              "LATTICE",
+              "EMPTY",
+              "LIGHT",
+              "LIGHT_PROBE",
+              "CAMERA",
+              "SPEAKER"
+            ]
           },
           "location": {
             "type": "array",
-            "items": { "type": "number" },
+            "items": {
+              "type": "number"
+            },
             "minItems": 3,
             "maxItems": 3
           },
           "rotation_euler": {
             "type": "array",
-            "items": { "type": "number" },
+            "items": {
+              "type": "number"
+            },
             "minItems": 3,
             "maxItems": 3
           },
           "scale": {
             "type": "array",
-            "items": { "type": "number" },
+            "items": {
+              "type": "number"
+            },
             "minItems": 3,
             "maxItems": 3
           },
           "dimensions": {
             "type": "array",
-            "items": { "type": "number" },
+            "items": {
+              "type": "number"
+            },
             "minItems": 3,
             "maxItems": 3
           },
           "parent": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "collection": {
             "type": "string"
@@ -88,12 +145,23 @@
             "type": "object",
             "description": "Mesh stats (full detail only).",
             "properties": {
-              "vertices": { "type": "integer" },
-              "edges": { "type": "integer" },
-              "polygons": { "type": "integer" },
+              "vertices": {
+                "type": "integer"
+              },
+              "edges": {
+                "type": "integer"
+              },
+              "polygons": {
+                "type": "integer"
+              },
               "materials": {
                 "type": "array",
-                "items": { "type": ["string", "null"] }
+                "items": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
               }
             },
             "additionalProperties": false
@@ -103,10 +171,17 @@
             "description": "Modifier list (full detail only).",
             "items": {
               "type": "object",
-              "required": ["name", "type"],
+              "required": [
+                "name",
+                "type"
+              ],
               "properties": {
-                "name": { "type": "string" },
-                "type": { "type": "string" }
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                }
               },
               "additionalProperties": false
             }
@@ -115,9 +190,18 @@
             "type": "object",
             "description": "Animation summary (full detail only).",
             "properties": {
-              "has_action": { "type": "boolean" },
-              "action_name": { "type": ["string", "null"] },
-              "keyframe_count": { "type": "integer" }
+              "has_action": {
+                "type": "boolean"
+              },
+              "action_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "keyframe_count": {
+                "type": "integer"
+              }
             },
             "additionalProperties": false
           }
@@ -130,16 +214,24 @@
       "description": "Collection hierarchy (standard+).",
       "items": {
         "type": "object",
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "properties": {
-          "name": { "type": "string" },
+          "name": {
+            "type": "string"
+          },
           "children": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           },
           "objects": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false
@@ -149,8 +241,15 @@
       "type": "object",
       "description": "World info (standard+).",
       "properties": {
-        "name": { "type": ["string", "null"] },
-        "use_nodes": { "type": "boolean" }
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "use_nodes": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": false
     }

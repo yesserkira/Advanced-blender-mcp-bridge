@@ -4,10 +4,16 @@
   "title": "BlenderMCP Response",
   "description": "A response sent from the Blender add-on back to the MCP server.",
   "type": "object",
-  "required": ["id", "ok"],
+  "required": [
+    "id",
+    "ok"
+  ],
   "properties": {
     "id": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Matching command identifier."
     },
     "ok": {
@@ -20,7 +26,10 @@
     "error": {
       "type": "object",
       "description": "Error details (present when ok=false).",
-      "required": ["code", "message"],
+      "required": [
+        "code",
+        "message"
+      ],
       "properties": {
         "code": {
           "type": "string",
@@ -71,7 +80,10 @@
     "event": {
       "type": "string",
       "description": "Event type for streaming messages.",
-      "enum": ["progress", "log"]
+      "enum": [
+        "progress",
+        "log"
+      ]
     },
     "pct": {
       "type": "number",

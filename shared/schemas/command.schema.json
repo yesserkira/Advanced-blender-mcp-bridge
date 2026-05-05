@@ -4,7 +4,11 @@
   "title": "BlenderMCP Command",
   "description": "A command sent from the MCP server to the Blender add-on over WebSocket.",
   "type": "object",
-  "required": ["id", "op", "auth"],
+  "required": [
+    "id",
+    "op",
+    "auth"
+  ],
   "properties": {
     "id": {
       "type": "string",

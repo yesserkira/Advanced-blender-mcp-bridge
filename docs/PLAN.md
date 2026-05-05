@@ -506,3 +506,33 @@ At MVP the user can, from VS Code Copilot Chat: open Blender → enable add-on �
 | 2026-05-05 | — | plan v1.0 created | approved |
 | 2026-05-05 | T-001 | done | folder skeleton created |
 | 2026-05-05 | T-003 | done | plan mirrored to docs/PLAN.md |
+| 2026-05-05 | T-401 | done | object.transform in scene.py + MCP set_transform |
+| 2026-05-05 | T-402 | done | object.delete in scene.py + MCP delete_object |
+| 2026-05-05 | T-403 | done | selection.set/get in scene.py + MCP select/get_selection |
+| 2026-05-05 | T-404 | done | material.create_pbr in material.py + MCP create_material_pbr |
+| 2026-05-05 | T-405 | done | material.assign in material.py + MCP assign_material |
+| 2026-05-05 | T-406 | done | light.create in light_camera.py + MCP create_light |
+| 2026-05-05 | T-407 | done | camera.create + camera.set_active in light_camera.py + MCP tools |
+| 2026-05-05 | T-408 | done | modifier.add in modifier.py + MCP apply_modifier |
+| 2026-05-05 | T-409 | done | mesh.edit (bmesh) in mesh.py + MCP edit_mesh |
+| 2026-05-05 | T-410 | done | animation.keyframe in animation.py + MCP set_keyframe |
+| 2026-05-05 | T-411 | done | transaction begin/commit/rollback in checkpoint.py + MCP tools |
+| 2026-05-05 | T-412 | done | exec.python + AST validator in validator.py + MCP execute_python |
+| 2026-05-05 | T-501 | done | VS Code extension scaffold (package.json, tsconfig, extension.ts) |
+| 2026-05-05 | T-502 | done | Output channel "Blender MCP" in extension.ts |
+| 2026-05-05 | T-503 | done | Approval webview (approval.ts) with HTTP loopback server |
+| 2026-05-05 | T-504 | done | Viewport preview panel (viewportPreview.ts) with WS client |
+| 2026-05-05 | T-505 | done | .vscode/mcp.json + example configs updated |
+| 2026-05-05 | T-601 | done | CONTRIBUTING.md with Copilot Chat verification steps |
+| 2026-05-05 | T-602 | done | Claude Desktop config verified + docs |
+| 2026-05-05 | T-603 | done | Cursor + Cline configs + docs |
+| 2026-05-05 | T-701 | done | Streaming progress on render (render.py + progress.py) |
+| 2026-05-05 | T-702 | done | Self-healing exec_python + suggest_fix MCP tool |
+| 2026-05-05 | T-703 | done | Geometry Nodes DSL (geonodes.py + MCP build_geonodes) |
+| 2026-05-05 | T-704 | done | Shader graph DSL (shader_graph.py + MCP set_material_node_graph) |
+| 2026-05-05 | T-705 | done | Asset import with path-jail (asset_import.py + MCP import_asset) |
+| 2026-05-05 | T-801 | done | scripts/package_addon.ps1 |
+| 2026-05-05 | T-802 | done | pyproject.toml PyPI-ready v1.0.0 + mcp_server/README.md |
+| 2026-05-05 | T-803 | done | vsce package ready (.vscodeignore, CHANGELOG, README, v1.0.0) |
+| 2026-05-05 | T-804 | done | .github/workflows/ci.yml (4-job matrix) |
+| 2026-05-05 | T-805 | done | RELEASE_NOTES.md + version bump to 1.0.0 |

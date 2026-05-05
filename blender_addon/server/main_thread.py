@@ -11,19 +11,20 @@ import traceback
 
 import bpy
 
-_inbox: "queue.Queue[tuple[dict, callable]]" = queue.Queue()
+_inbox: "queue.Queue[tuple[dict, callable, object]]" = queue.Queue()
 
 _running = False
 
 
-def submit(cmd: dict, resolve):
+def submit(cmd: dict, resolve, progress_callback=None):
     """Enqueue a command to be executed on the main thread.
 
     Args:
         cmd: Command dict with at least 'id' and 'op' keys.
         resolve: Callable(response_dict) to deliver the result.
+        progress_callback: Optional callable(percent, message) for progress.
     """
-    _inbox.put((cmd, resolve))
+    _inbox.put((cmd, resolve, progress_callback))
 
 
 def _pump():
@@ -35,14 +36,14 @@ def _pump():
     try:
         while time.perf_counter() < deadline:
             try:
-                cmd, resolve = _inbox.get_nowait()
+                cmd, resolve, progress_cb = _inbox.get_nowait()
             except queue.Empty:
                 break
 
             from .dispatcher import dispatch
 
             try:
-                result = dispatch(cmd)
+                result = dispatch(cmd, progress_callback=progress_cb)
                 resolve({
                     "id": cmd.get("id"),
                     "ok": True,
@@ -79,7 +80,7 @@ def stop():
     # Drain remaining items with error
     while True:
         try:
-            cmd, resolve = _inbox.get_nowait()
+            cmd, resolve, _pc = _inbox.get_nowait()
             resolve({
                 "id": cmd.get("id"),
                 "ok": False,

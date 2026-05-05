@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/asset_import.schema.json",
+  "title": "BlenderMCP Asset Import",
+  "description": "Schemas for asset.import args and response.",
+  "definitions": {
+    "args": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to the asset file.",
+          "minLength": 1
+        },
+        "format": {
+          "type": "string",
+          "description": "Format override. Auto-detected from extension if omitted.",
+          "enum": [
+            ".fbx",
+            ".obj",
+            ".glb",
+            ".gltf",
+            ".stl"
+          ]
+        },
+        "location": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "[x, y, z] position for imported objects."
+        },
+        "scale": {
+          "type": "number",
+          "description": "Scale factor for imported objects.",
+          "default": 1.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "response": {
+      "type": "object",
+      "required": [
+        "imported_objects",
+        "format",
+        "path"
+      ],
+      "properties": {
+        "imported_objects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Names of the imported objects."
+        },
+        "format": {
+          "type": "string",
+          "description": "File format extension used."
+        },
+        "path": {
+          "type": "string",
+          "description": "Resolved absolute path of the imported file."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

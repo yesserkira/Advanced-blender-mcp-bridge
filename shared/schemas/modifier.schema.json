@@ -1,0 +1,139 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/modifier.schema.json",
+  "title": "BlenderMCP Modifier Add",
+  "description": "Schemas for modifier.add args and response.",
+  "definitions": {
+    "args": {
+      "type": "object",
+      "required": [
+        "object_name",
+        "modifier_type"
+      ],
+      "properties": {
+        "object_name": {
+          "type": "string",
+          "description": "Name of the target object.",
+          "minLength": 1
+        },
+        "modifier_type": {
+          "type": "string",
+          "enum": [
+            "SUBSURF",
+            "BEVEL",
+            "MIRROR",
+            "ARRAY",
+            "BOOLEAN"
+          ],
+          "description": "Type of modifier to add."
+        },
+        "modifier_name": {
+          "type": "string",
+          "description": "Optional display name for the modifier."
+        },
+        "params": {
+          "type": "object",
+          "description": "Modifier-specific parameters.",
+          "properties": {
+            "levels": {
+              "type": "integer",
+              "description": "SUBSURF: viewport subdivision level.",
+              "default": 2
+            },
+            "render_levels": {
+              "type": "integer",
+              "description": "SUBSURF: render subdivision level.",
+              "default": 2
+            },
+            "width": {
+              "type": "number",
+              "description": "BEVEL: bevel width.",
+              "default": 0.1
+            },
+            "segments": {
+              "type": "integer",
+              "description": "BEVEL: number of segments.",
+              "default": 1
+            },
+            "use_axis": {
+              "type": "array",
+              "items": {
+                "type": "boolean"
+              },
+              "minItems": 3,
+              "maxItems": 3,
+              "description": "MIRROR: which axes to mirror [X, Y, Z].",
+              "default": [
+                true,
+                false,
+                false
+              ]
+            },
+            "count": {
+              "type": "integer",
+              "description": "ARRAY: number of copies.",
+              "default": 2
+            },
+            "relative_offset_displace": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3,
+              "maxItems": 3,
+              "description": "ARRAY: relative offset [x, y, z].",
+              "default": [
+                1,
+                0,
+                0
+              ]
+            },
+            "operation": {
+              "type": "string",
+              "enum": [
+                "INTERSECT",
+                "UNION",
+                "DIFFERENCE"
+              ],
+              "description": "BOOLEAN: boolean operation type."
+            },
+            "object": {
+              "type": "string",
+              "description": "BOOLEAN: name of the boolean target object."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "response": {
+      "type": "object",
+      "required": [
+        "object",
+        "modifier_name",
+        "modifier_type",
+        "index"
+      ],
+      "properties": {
+        "object": {
+          "type": "string",
+          "description": "Name of the object the modifier was added to."
+        },
+        "modifier_name": {
+          "type": "string",
+          "description": "Name of the created modifier."
+        },
+        "modifier_type": {
+          "type": "string",
+          "description": "Type of the created modifier."
+        },
+        "index": {
+          "type": "integer",
+          "description": "Index of the modifier in the object's modifier stack."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

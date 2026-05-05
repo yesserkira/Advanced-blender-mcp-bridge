@@ -1,0 +1,112 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/transaction.schema.json",
+  "title": "BlenderMCP Transaction Operations",
+  "description": "Schemas for transaction.begin, transaction.commit, and transaction.rollback operations.",
+  "definitions": {
+    "transaction_begin_args": {
+      "type": "object",
+      "required": [
+        "transaction_id"
+      ],
+      "properties": {
+        "transaction_id": {
+          "type": "string",
+          "description": "Unique identifier for the transaction.",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "transaction_begin_result": {
+      "type": "object",
+      "required": [
+        "transaction_id",
+        "status"
+      ],
+      "properties": {
+        "transaction_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "transaction_commit_args": {
+      "type": "object",
+      "required": [
+        "transaction_id"
+      ],
+      "properties": {
+        "transaction_id": {
+          "type": "string",
+          "description": "ID of the active transaction to commit.",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "transaction_commit_result": {
+      "type": "object",
+      "required": [
+        "transaction_id",
+        "status",
+        "op_count"
+      ],
+      "properties": {
+        "transaction_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "committed"
+          ]
+        },
+        "op_count": {
+          "type": "integer",
+          "description": "Number of operations performed during the transaction."
+        }
+      },
+      "additionalProperties": false
+    },
+    "transaction_rollback_args": {
+      "type": "object",
+      "required": [
+        "transaction_id"
+      ],
+      "properties": {
+        "transaction_id": {
+          "type": "string",
+          "description": "ID of the active transaction to roll back.",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "transaction_rollback_result": {
+      "type": "object",
+      "required": [
+        "transaction_id",
+        "status"
+      ],
+      "properties": {
+        "transaction_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "rolled_back"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

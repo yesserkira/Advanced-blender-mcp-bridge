@@ -1,4 +1,10 @@
 {
+  // VS Code MCP configuration for Blender MCP Bridge.
+  // Place this file at .vscode/mcp.json in your project root.
+  //
+  // If installed via pipx:  "command": "pipx run blender-mcp"
+  // If installed via uv:    "command": "uv run blender-mcp"
+  // If installed locally:   "command": "blender-mcp"
   "servers": {
     "blender": {
       "command": "blender-mcp",

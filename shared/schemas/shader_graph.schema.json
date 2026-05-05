@@ -1,0 +1,151 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/shader_graph.schema.json",
+  "title": "BlenderMCP Shader Graph DSL",
+  "description": "Schema for shader.set_graph args and response.",
+  "definitions": {
+    "node_definition": {
+      "type": "object",
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this node (used in links)."
+        },
+        "type": {
+          "type": "string",
+          "description": "Blender shader node type string, e.g. 'ShaderNodeBsdfPrincipled'."
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Optional display label."
+        },
+        "location": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Node position [x, y]. Auto-layout if omitted."
+        },
+        "inputs": {
+          "type": "object",
+          "description": "Input socket defaults (socket_name → value).",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "link_definition": {
+      "type": "object",
+      "required": [
+        "from_node",
+        "from_socket",
+        "to_node",
+        "to_socket"
+      ],
+      "properties": {
+        "from_node": {
+          "type": "string",
+          "description": "ID of source node. Use 'material_output' for Material Output."
+        },
+        "from_socket": {
+          "type": "string",
+          "description": "Output socket name on the source node."
+        },
+        "to_node": {
+          "type": "string",
+          "description": "ID of target node. Use 'material_output' for Material Output."
+        },
+        "to_socket": {
+          "type": "string",
+          "description": "Input socket name on the target node."
+        }
+      },
+      "additionalProperties": false
+    },
+    "set_graph_args": {
+      "type": "object",
+      "required": [
+        "material_name",
+        "nodes"
+      ],
+      "properties": {
+        "material_name": {
+          "type": "string",
+          "description": "Material name. Created if missing (when create_if_missing=True)."
+        },
+        "create_if_missing": {
+          "type": "boolean",
+          "default": true,
+          "description": "Create material if it doesn't exist."
+        },
+        "clear_existing": {
+          "type": "boolean",
+          "default": true,
+          "description": "Clear existing nodes before building."
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/node_definition"
+          },
+          "description": "List of node definitions."
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/link_definition"
+          },
+          "description": "List of node connections."
+        },
+        "output_node": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ID of node to auto-connect to Material Output Surface."
+        }
+      },
+      "additionalProperties": false
+    },
+    "set_graph_response": {
+      "type": "object",
+      "required": [
+        "material",
+        "node_count",
+        "link_count",
+        "nodes_created"
+      ],
+      "properties": {
+        "material": {
+          "type": "string",
+          "description": "Material name."
+        },
+        "node_count": {
+          "type": "integer",
+          "description": "Total node count (including Material Output)."
+        },
+        "link_count": {
+          "type": "integer",
+          "description": "Total link count."
+        },
+        "nodes_created": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of node type strings that were created."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

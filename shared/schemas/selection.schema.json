@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/selection.schema.json",
+  "title": "BlenderMCP Selection",
+  "description": "Schemas for selection.set / selection.get args and responses.",
+  "definitions": {
+    "set_args": {
+      "type": "object",
+      "required": [
+        "names"
+      ],
+      "properties": {
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Object names to select."
+        },
+        "active": {
+          "type": "string",
+          "description": "Optional name of the object to set as active."
+        }
+      },
+      "additionalProperties": false
+    },
+    "get_args": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "response": {
+      "type": "object",
+      "required": [
+        "selected",
+        "active"
+      ],
+      "properties": {
+        "selected": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Names of currently selected objects."
+        },
+        "active": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Name of the active object, or null."
+        }
+      },
+      "additionalProperties": false
+    },
+    "delete_args": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the object to delete.",
+          "minLength": 1
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "Reserved for policy confirmation. Defaults to false.",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "delete_response": {
+      "type": "object",
+      "required": [
+        "deleted",
+        "remaining_count"
+      ],
+      "properties": {
+        "deleted": {
+          "type": "string",
+          "description": "Name of the deleted object."
+        },
+        "remaining_count": {
+          "type": "integer",
+          "description": "Number of objects remaining in the scene."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

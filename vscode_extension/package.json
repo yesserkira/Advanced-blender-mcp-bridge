@@ -1,0 +1,72 @@
+{
+  "name": "blender-mcp-bridge",
+  "displayName": "Blender MCP Bridge",
+  "description": "Optional VS Code companion for the Blender MCP Bridge — approval webview, viewport preview, output channel.",
+  "version": "1.0.0",
+  "publisher": "blendervscode",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/BlenderVscode"
+  },
+  "homepage": "https://github.com/user/BlenderVscode",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "blenderMcp.showOutput",
+        "title": "Blender MCP: Show Output"
+      },
+      {
+        "command": "blenderMcp.approveAction",
+        "title": "Blender MCP: Approve Action"
+      },
+      {
+        "command": "blenderMcp.showViewportPreview",
+        "title": "Blender MCP: Show Viewport Preview"
+      }
+    ],
+    "configuration": {
+      "title": "Blender MCP Bridge",
+      "properties": {
+        "blenderMcp.viewportPreview.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable automatic viewport preview polling."
+        },
+        "blenderMcp.viewportPreview.intervalSeconds": {
+          "type": "number",
+          "default": 5,
+          "description": "Interval in seconds between viewport preview refreshes."
+        },
+        "blenderMcp.approvalServer.port": {
+          "type": "number",
+          "default": 0,
+          "description": "Port for the approval HTTP server (0 = ephemeral)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.99.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.0",
+    "@vscode/vsce": "^3.0.0"
+  }
+}

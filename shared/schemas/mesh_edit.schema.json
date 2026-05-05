@@ -1,0 +1,194 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://blendermcp.local/schemas/mesh_edit.schema.json",
+  "title": "BlenderMCP Mesh Edit Operations",
+  "description": "Schemas for mesh.edit args and response (extrude, bevel, loop_cut, boolean).",
+  "definitions": {
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "[x, y, z] vector."
+    },
+    "extrude_params": {
+      "type": "object",
+      "properties": {
+        "offset": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Extrusion distance."
+        },
+        "direction": {
+          "$ref": "#/definitions/vec3",
+          "description": "Extrusion direction. Default [0, 0, 1]."
+        }
+      },
+      "additionalProperties": false
+    },
+    "bevel_params": {
+      "type": "object",
+      "properties": {
+        "offset": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.1,
+          "description": "Bevel width."
+        },
+        "segments": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Number of bevel segments."
+        },
+        "affect": {
+          "type": "string",
+          "enum": [
+            "EDGES",
+            "VERTICES"
+          ],
+          "default": "EDGES",
+          "description": "Whether to bevel edges or vertices."
+        }
+      },
+      "additionalProperties": false
+    },
+    "loop_cut_params": {
+      "type": "object",
+      "properties": {
+        "cuts": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Number of loop cuts."
+        },
+        "edge_index": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Edge index to cut along."
+        }
+      },
+      "additionalProperties": false
+    },
+    "boolean_params": {
+      "type": "object",
+      "required": [
+        "other_object"
+      ],
+      "properties": {
+        "other_object": {
+          "type": "string",
+          "description": "Name of the other mesh object."
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "UNION",
+            "INTERSECT",
+            "DIFFERENCE"
+          ],
+          "default": "DIFFERENCE",
+          "description": "Boolean operation type."
+        }
+      },
+      "additionalProperties": false
+    },
+    "edit_args": {
+      "type": "object",
+      "required": [
+        "object_name",
+        "operation"
+      ],
+      "properties": {
+        "object_name": {
+          "type": "string",
+          "description": "Name of the mesh object to edit."
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "extrude",
+            "bevel",
+            "loop_cut",
+            "boolean"
+          ],
+          "description": "Edit operation to perform."
+        },
+        "params": {
+          "type": "object",
+          "description": "Operation-specific parameters. See extrude_params, bevel_params, loop_cut_params, or boolean_params."
+        }
+      },
+      "additionalProperties": false
+    },
+    "edit_response": {
+      "type": "object",
+      "required": [
+        "object",
+        "operation",
+        "vertices",
+        "polys"
+      ],
+      "properties": {
+        "object": {
+          "type": "string",
+          "description": "Edited object name."
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "extrude",
+            "bevel",
+            "loop_cut",
+            "boolean"
+          ],
+          "description": "Operation performed."
+        },
+        "vertices": {
+          "type": "integer",
+          "description": "Vertex count after edit."
+        },
+        "polys": {
+          "type": "integer",
+          "description": "Polygon count after edit."
+        },
+        "offset": {
+          "type": "number",
+          "description": "Offset used (extrude/bevel)."
+        },
+        "direction": {
+          "$ref": "#/definitions/vec3",
+          "description": "Direction used (extrude)."
+        },
+        "segments": {
+          "type": "integer",
+          "description": "Segments used (bevel)."
+        },
+        "affect": {
+          "type": "string",
+          "description": "Affect mode used (bevel)."
+        },
+        "cuts": {
+          "type": "integer",
+          "description": "Number of cuts made (loop_cut)."
+        },
+        "edge_index": {
+          "type": "integer",
+          "description": "Edge index cut along (loop_cut)."
+        },
+        "boolean_mode": {
+          "type": "string",
+          "description": "Boolean mode used (boolean)."
+        },
+        "other_object": {
+          "type": "string",
+          "description": "Other object name (boolean)."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

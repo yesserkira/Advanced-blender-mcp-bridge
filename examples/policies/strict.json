@@ -5,12 +5,17 @@
     "create_primitive",
     "viewport_screenshot"
   ],
-  "denied_tools": ["execute_python"],
+  "denied_tools": [
+    "execute_python"
+  ],
   "allowed_roots": [],
   "max_polys": 500000,
   "max_resolution": 2048,
   "snapshot_threshold": 3,
-  "confirm_required": ["delete_object", "execute_python"],
+  "confirm_required": [
+    "delete_object",
+    "execute_python"
+  ],
   "rate_limit": {
     "mutating_ops_per_10s": 30
   }
