@@ -1,0 +1,19 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Server Tests",
+      "type": "shell",
+      "command": "cd mcp_server && uv run pytest -q",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint Add-on",
+      "type": "shell",
+      "command": "ruff check blender_addon",
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

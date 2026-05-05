@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+.python-version
+
+# Node / TypeScript
+node_modules/
+out/
+*.js.map
+*.vsix
+
+# Blender
+*.blend1
+*.blend2
+
+# VS Code
+.vscode/*
+!.vscode/mcp.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# BlenderMCP runtime
+.blendermcp/
