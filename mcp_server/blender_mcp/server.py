@@ -396,9 +396,24 @@ async def create_objects(specs: list[dict]) -> dict:
         # empty:    "empty_type":"PLAIN_AXES|ARROWS|...","empty_display_size":..
       }
     """
-    _get_policy().require("create_objects")
-    return await _call("create_objects", {"specs": specs}, timeout=60.0)
+    policy = _get_policy()
+    policy.require("create_objects")
+    from .policy import estimate_polys
 
+    estimated = estimate_polys(specs)
+    if estimated > policy.max_polys:
+        return {
+            "error": "POLICY_DENIED",
+            "code": "POLY_BUDGET_EXCEEDED",
+            "message": (
+                f"Estimated {estimated} polygons exceeds max_polys "
+                f"({policy.max_polys}). Reduce subdivision levels, array counts, "
+                "or split into smaller transactions."
+            ),
+            "estimated_polys": estimated,
+            "max_polys": policy.max_polys,
+        }
+    return await _call("create_objects", {"specs": specs}, timeout=60.0)
 
 @mcp.tool()
 async def transaction(steps: list[dict], label: str | None = None) -> dict:

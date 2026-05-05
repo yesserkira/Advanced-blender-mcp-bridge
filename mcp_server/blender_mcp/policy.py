@@ -197,3 +197,78 @@ class Policy:
                 f"Resolution {w}x{h} exceeds limit of {self.max_resolution}",
                 hint="Increase max_resolution in .blendermcp.json",
             )
+
+
+# ---------------------------------------------------------------------------
+# Polygon estimation for create_objects / primitive specs
+# ---------------------------------------------------------------------------
+
+
+# Approximate polygon counts for Blender primitives at default subdivision.
+# Sources: Blender docs / measured. Used purely as an *upper-bound estimate*
+# so the model can't sneak a 10M-poly mesh past the policy by lying about it.
+_PRIMITIVE_POLY_ESTIMATES: dict[str, int] = {
+    "cube": 6,
+    "plane": 1,
+    "circle": 32,
+    "uv_sphere": 960,        # 32 segments x 16 rings (default)
+    "sphere": 960,
+    "ico_sphere": 320,       # subdivisions=2 default
+    "icosphere": 320,
+    "cylinder": 96,          # 32 verts x 2 caps + 32 sides
+    "cone": 64,
+    "torus": 576,            # 12 minor x 48 major (default)
+    "monkey": 968,            # Suzanne
+    "suzanne": 968,
+    "grid": 100,             # 10x10 default
+    "light": 0,
+    "camera": 0,
+    "empty": 0,
+    "armature": 0,
+}
+
+# Conservative multiplier for known mesh modifiers that grow geometry.
+_MODIFIER_MULTIPLIERS: dict[str, float] = {
+    "SUBSURF": 4.0,           # one level ~4x faces
+    "SUBDIVISION_SURFACE": 4.0,
+    "MULTIRES": 4.0,
+    "MIRROR": 2.0,
+    "ARRAY": 1.0,             # multiplied by count below
+    "BEVEL": 1.5,
+    "SOLIDIFY": 2.0,
+    "REMESH": 2.0,
+}
+
+
+def _estimate_one(spec: dict) -> int:
+    """Estimate polygons for a single create_objects spec."""
+    if not isinstance(spec, dict):
+        return 0
+    kind = str(spec.get("kind") or spec.get("type") or "").lower().replace(" ", "_")
+    base = _PRIMITIVE_POLY_ESTIMATES.get(kind, 100)  # unknown -> small default
+    mods = spec.get("modifiers") or []
+    if isinstance(mods, list):
+        for m in mods:
+            if not isinstance(m, dict):
+                continue
+            mtype = str(m.get("type", "")).upper()
+            mult = _MODIFIER_MULTIPLIERS.get(mtype, 1.0)
+            if mtype == "SUBSURF" or mtype == "SUBDIVISION_SURFACE" or mtype == "MULTIRES":
+                # Power-of-4 by level (capped at level 4 to avoid silly numbers).
+                props = m.get("properties") or {}
+                level = int(props.get("levels", props.get("render_levels", 1)) or 1)
+                level = max(0, min(level, 4))
+                mult = 4.0 ** level
+            elif mtype == "ARRAY":
+                props = m.get("properties") or {}
+                count = int(props.get("count", 2) or 2)
+                mult = max(1.0, float(count))
+            base = int(base * mult)
+    return base
+
+
+def estimate_polys(specs: list[dict]) -> int:
+    """Estimate total polygons for a list of create_objects specs."""
+    if not isinstance(specs, list):
+        return 0
+    return sum(_estimate_one(s) for s in specs)
