@@ -80,14 +80,26 @@ def exec_python(args: dict) -> dict:
     cmd_id = args.get("_cmd_id", "unknown")
     bpy.ops.ed.undo_push(message=f"AI:exec.python:{cmd_id}")
 
-    # Step 3: Prepare restricted globals — empty __builtins__ prevents
-    # access to built-in functions like open(), eval(), exec(), etc.
+    # Step 3: Prepare restricted globals — allow safe builtins only.
+    # The AST validator already blocks dangerous calls (eval, exec, open, etc.)
+    # but we also remove them from builtins as defence-in-depth.
+    import builtins as _builtins
+    _denied = {
+        "eval", "exec", "compile", "open", "getattr", "setattr",
+        "delattr", "globals", "locals", "vars", "dir", "type",
+        "__import__", "input", "breakpoint", "memoryview",
+        "exit", "quit",
+    }
+    _safe_builtins = {
+        k: v for k, v in _builtins.__dict__.items()
+        if not k.startswith("_") and k not in _denied
+    }
     restricted_globals = {
         "bpy": bpy,
         "mathutils": __import__("mathutils"),
         "bmesh": __import__("bmesh"),
         "math": __import__("math"),
-        "__builtins__": {},
+        "__builtins__": _safe_builtins,
     }
 
     # Step 4: Execute
