@@ -658,6 +658,54 @@ async def execute_python(
 
 
 # ===========================================================================
+# Checkpoints (persistent .blend snapshots)
+# ===========================================================================
+
+
+@mcp.tool()
+async def create_checkpoint(label: str | None = None, note: str | None = None) -> dict:
+    """Save a copy of the current .blend as a recovery checkpoint.
+
+    Stored under %LOCALAPPDATA%/BlenderMCP/checkpoints/<sha(filepath)>/...
+    Old checkpoints beyond the keep-limit are pruned automatically.
+    """
+    _get_policy().require("create_checkpoint")
+    return await _call("checkpoint.create", {"label": label, "note": note}, timeout=60.0)
+
+
+@mcp.tool()
+async def list_checkpoints(source: str | None = None) -> dict:
+    """List checkpoints (newest first) for the current .blend or a given path."""
+    _get_policy().require("list_checkpoints")
+    return await _call("checkpoint.list", {"source": source})
+
+
+@mcp.tool()
+async def restore_checkpoint(blend_path: str) -> dict:
+    """Restore a previously saved checkpoint. Requires user approval."""
+    policy = _get_policy()
+    policy.require("restore_checkpoint")
+    from .approval import request_approval
+
+    outcome = await request_approval(
+        tool="restore_checkpoint",
+        args={"blend_path": blend_path},
+    )
+    if not outcome.available:
+        return {
+            "error": "CONFIRM_REQUIRED",
+            "message": "restore_checkpoint requires user confirmation but no approval endpoint is available.",
+            "detail": outcome.error,
+        }
+    if not outcome.approved:
+        return {
+            "error": "CONFIRM_DENIED",
+            "message": "User rejected restore_checkpoint via approval prompt.",
+        }
+    return await _call("checkpoint.restore", {"blend_path": blend_path}, timeout=60.0)
+
+
+# ===========================================================================
 # Entry point
 # ===========================================================================
 

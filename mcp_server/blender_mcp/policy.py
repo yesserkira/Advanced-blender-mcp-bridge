@@ -25,9 +25,9 @@ READ_ONLY_TOOLS: frozenset[str] = frozenset(
         "list_materials",
         "scene_diff",
         "get_render_settings",
+        "list_checkpoints",
     }
 )
-
 
 def is_mutating(tool_name: str) -> bool:
     """True if calling `tool_name` may modify the Blender scene."""

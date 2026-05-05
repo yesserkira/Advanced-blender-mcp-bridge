@@ -9,7 +9,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$out  = Join-Path $PSScriptRoot "baselines\$Tag.json"
+$out = Join-Path $PSScriptRoot "baselines\$Tag.json"
 New-Item -ItemType Directory -Path (Split-Path $out) -Force | Out-Null
 
 Write-Host "Running mcp_server pytest..."
@@ -27,15 +27,15 @@ $compileExit = $LASTEXITCODE
 Pop-Location
 
 $payload = [ordered]@{
-    tag           = $Tag
-    captured_at   = (Get-Date).ToString("o")
-    pytest        = [ordered]@{
+    tag         = $Tag
+    captured_at = (Get-Date).ToString("o")
+    pytest      = [ordered]@{
         exit_code = $pytestExit
         passed    = $passed
         failed    = $failed
         summary   = $pytestSummary.Trim()
     }
-    extension     = [ordered]@{
+    extension   = [ordered]@{
         exit_code = $compileExit
         ok        = ($compileExit -eq 0)
     }

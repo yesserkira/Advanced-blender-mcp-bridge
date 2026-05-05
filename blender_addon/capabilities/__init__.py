@@ -31,3 +31,4 @@ def load_all():
     from . import assets      # noqa: F401  import_asset / link_blend / list_assets
     from . import diff        # noqa: F401  scene_diff / snapshot_clear
     from . import exec_python # noqa: F401  exec.python
+    from . import checkpoint  # noqa: F401  checkpoint.create / list / restore

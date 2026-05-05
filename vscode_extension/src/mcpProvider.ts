@@ -27,7 +27,7 @@ export class BlenderMcpProvider {
   constructor(
     private readonly _channel: vscode.OutputChannel,
     private readonly _approval: ApprovalServer,
-  ) {}
+  ) { }
 
   /** Trigger a re-query (e.g. after settings change). */
   refresh(): void {
@@ -45,7 +45,7 @@ export class BlenderMcpProvider {
     if (!pythonPath) {
       this._channel.appendLine(
         'MCP provider: blenderMcp.pythonPath is empty; skipping registration. ' +
-          'Set it to the python.exe inside your venv (e.g. .../mcp_server/.venv/Scripts/python.exe).',
+        'Set it to the python.exe inside your venv (e.g. .../mcp_server/.venv/Scripts/python.exe).',
       );
       return [];
     }
@@ -63,7 +63,7 @@ export class BlenderMcpProvider {
     if (workspaceMcpJsonDefinesBlender(this._channel)) {
       this._channel.appendLine(
         'MCP provider: workspace .vscode/mcp.json already defines a "blender" ' +
-          'server; skipping programmatic registration to avoid duplicates.',
+        'server; skipping programmatic registration to avoid duplicates.',
       );
       return [];
     }
@@ -136,7 +136,7 @@ export function registerBlenderMcpProvider(
   if (typeof lm.registerMcpServerDefinitionProvider !== 'function') {
     channel.appendLine(
       'MCP provider: vscode.lm.registerMcpServerDefinitionProvider not available ' +
-        'in this VS Code build; falling back to manual .vscode/mcp.json setup.',
+      'in this VS Code build; falling back to manual .vscode/mcp.json setup.',
     );
     return { provider, disposable: undefined };
   }
