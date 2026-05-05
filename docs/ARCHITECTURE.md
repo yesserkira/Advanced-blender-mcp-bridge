@@ -238,7 +238,7 @@ as append-only JSONL. Fields: ts, op, args_sha256, ok, elapsed_ms, undo_id.
 | `blender_addon/server/dispatcher.py` | Routes op → capability function |
 | `blender_addon/server/main_thread.py` | bpy.app.timers queue pump |
 | `blender_addon/capabilities/*.py` | Individual Blender capabilities |
-| `blender_addon/safety/checkpoint.py` | Undo/transaction management |
+| `blender_addon/safety/checkpoints.py` | Persistent .blend snapshots (create/list/restore + auto-prune) |
 | `blender_addon/safety/validator.py` | AST validator for execute_python |
 | `blender_addon/safety/audit_log.py` | JSONL audit logger |
 | `blender_addon/vendor/` | Vendored websockets wheel |

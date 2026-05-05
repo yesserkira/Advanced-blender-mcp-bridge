@@ -13,18 +13,18 @@ logger = logging.getLogger("blender_mcp.policy")
 
 # Tools that observe Blender state without changing it. Excluded from the
 # mutating-rate-limiter so a status panel polling `ping` cannot be throttled.
+# NOTE: keep in sync with @mcp.tool() definitions in server.py.
 READ_ONLY_TOOLS: frozenset[str] = frozenset(
     {
         "ping",
-        "get_scene_info",
-        "get_object_info",
+        "query",
+        "list",
+        "describe_api",
         "get_audit_log",
-        "get_viewport_screenshot",
+        "get_property",
         "list_assets",
-        "list_collections",
-        "list_materials",
+        "viewport_screenshot",
         "scene_diff",
-        "get_render_settings",
         "list_checkpoints",
     }
 )

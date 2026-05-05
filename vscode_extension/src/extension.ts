@@ -15,7 +15,9 @@ export function getOutputChannel(): vscode.OutputChannel {
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const channel = getOutputChannel();
-  channel.appendLine('Blender MCP Bridge v2.0 activated.');
+  const ext = vscode.extensions.getExtension(context.extension?.id ?? '');
+  const version = (ext?.packageJSON?.version as string | undefined) ?? 'unknown';
+  channel.appendLine(`Blender MCP Bridge v${version} activated.`);
 
   // ----- status bar + tree view --------------------------------------------
   const status = new StatusController(context);

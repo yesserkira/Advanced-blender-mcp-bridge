@@ -109,7 +109,8 @@ function workspaceMcpJsonDefinesBlender(channel: vscode.OutputChannel): boolean 
       continue;
     }
     try {
-      const data = JSON.parse(fs.readFileSync(file, 'utf-8')) as {
+      const raw = stripJsonComments(fs.readFileSync(file, 'utf-8'));
+      const data = JSON.parse(raw) as {
         servers?: Record<string, unknown>;
       };
       if (data.servers && Object.prototype.hasOwnProperty.call(data.servers, 'blender')) {
@@ -120,6 +121,67 @@ function workspaceMcpJsonDefinesBlender(channel: vscode.OutputChannel): boolean 
     }
   }
   return false;
+}
+
+/**
+ * Strip // line comments and /* block *\/ comments from a JSONC string while
+ * preserving the original character offsets (so JSON.parse error messages
+ * still point at meaningful columns). Quoted strings are left untouched.
+ */
+export function stripJsonComments(text: string): string {
+  let out = '';
+  let i = 0;
+  const n = text.length;
+  let inString = false;
+  let stringQuote = '"';
+  while (i < n) {
+    const ch = text[i];
+    const next = i + 1 < n ? text[i + 1] : '';
+    if (inString) {
+      out += ch;
+      if (ch === '\\' && i + 1 < n) {
+        out += text[i + 1];
+        i += 2;
+        continue;
+      }
+      if (ch === stringQuote) {
+        inString = false;
+      }
+      i += 1;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      inString = true;
+      stringQuote = ch;
+      out += ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      // Skip to end of line, preserving newlines for offset alignment.
+      while (i < n && text[i] !== '\n') {
+        out += ' ';
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      out += '  ';
+      i += 2;
+      while (i < n && !(text[i] === '*' && i + 1 < n && text[i + 1] === '/')) {
+        out += text[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      if (i < n) {
+        out += '  ';
+        i += 2;
+      }
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
 }
 
 /**

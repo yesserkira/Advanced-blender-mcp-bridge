@@ -31,6 +31,15 @@ log = logging.getLogger("blender_mcp.checkpoints")
 DEFAULT_KEEP = 20
 LABEL_MAX_LEN = 40
 
+# Reserved Windows device names; creating a file with these stems fails or
+# silently succeeds in odd ways. Sanitise label to avoid them on every OS so
+# the storage layout is portable.
+_WINDOWS_RESERVED: frozenset[str] = frozenset(
+    {"CON", "PRN", "NUL", "AUX"}
+    | {f"COM{i}" for i in range(1, 10)}
+    | {f"LPT{i}" for i in range(1, 10)}
+)
+
 
 @dataclass(frozen=True)
 class CheckpointEntry:
@@ -70,21 +79,43 @@ def _safe_label(label: str | None) -> str:
     raw = (label or "checkpoint").strip()
     cleaned = "".join(c if (c.isalnum() or c in "-_") else "-" for c in raw)
     cleaned = cleaned.strip("-") or "checkpoint"
-    return cleaned[:LABEL_MAX_LEN]
+    cleaned = cleaned[:LABEL_MAX_LEN]
+    if cleaned.upper() in _WINDOWS_RESERVED:
+        cleaned = f"{cleaned}_ck"
+    return cleaned
 
 
 def _timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    # Microsecond precision avoids collisions on rapid back-to-back saves.
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
 
 
 def build_paths(source_blend: str | None, label: str | None) -> tuple[Path, Path, str, str]:
-    """Compute (blend_path, meta_path, label, timestamp) for a new checkpoint."""
+    """Compute (blend_path, meta_path, label, timestamp) for a new checkpoint.
+
+    On the rare chance two calls land in the same microsecond, append a short
+    counter suffix to keep filenames unique.
+    """
     label_safe = _safe_label(label)
-    ts = _timestamp()
     pdir = project_dir(source_blend)
-    blend = pdir / f"{ts}-{label_safe}.blend"
-    meta = pdir / f"{ts}-{label_safe}.json"
-    return blend, meta, label_safe, ts
+    for attempt in range(8):
+        ts = _timestamp()
+        if attempt:
+            ts = f"{ts}-{attempt}"
+        blend = pdir / f"{ts}-{label_safe}.blend"
+        meta = pdir / f"{ts}-{label_safe}.json"
+        if not blend.exists() and not meta.exists():
+            return blend, meta, label_safe, ts
+    # Extreme fallback: nanosecond from time.time_ns()
+    import time as _time
+
+    ts = f"{_timestamp()}-{_time.time_ns()}"
+    return (
+        pdir / f"{ts}-{label_safe}.blend",
+        pdir / f"{ts}-{label_safe}.json",
+        label_safe,
+        ts,
+    )
 
 
 def list_checkpoints(source_blend: str | None) -> list[CheckpointEntry]:

@@ -429,7 +429,34 @@ async def transaction(steps: list[dict], label: str | None = None) -> dict:
           {"tool": "assign_material", "args": {"object": "Sphere", "material": "Gold"}},
         ], label="setup-shot-A")
     """
-    _get_policy().require("transaction")
+    policy = _get_policy()
+    policy.require("transaction")
+    # Apply the same poly budget to nested create_objects steps so a model
+    # can't bypass the cap by wrapping a huge spec in a transaction.
+    from .policy import estimate_polys
+
+    nested_specs: list[dict] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        if step.get("tool") == "create_objects":
+            sargs = step.get("args") or {}
+            specs = sargs.get("specs")
+            if isinstance(specs, list):
+                nested_specs.extend(specs)
+    if nested_specs:
+        estimated = estimate_polys(nested_specs)
+        if estimated > policy.max_polys:
+            return {
+                "error": "POLICY_DENIED",
+                "code": "POLY_BUDGET_EXCEEDED",
+                "message": (
+                    f"Transaction estimated {estimated} polygons across nested "
+                    f"create_objects steps; exceeds max_polys ({policy.max_polys})."
+                ),
+                "estimated_polys": estimated,
+                "max_polys": policy.max_polys,
+            }
     args: dict = {"steps": steps}
     if label:
         args["label"] = label
