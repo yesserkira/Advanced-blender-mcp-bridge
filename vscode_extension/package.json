@@ -10,7 +10,6 @@
     "url": "https://github.com/user/BlenderVscode"
   },
   "homepage": "https://github.com/user/BlenderVscode",
-  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.99.0"
   },

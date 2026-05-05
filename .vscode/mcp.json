@@ -1,8 +1,11 @@
 {
     "servers": {
         "blender": {
-            "command": "blender-mcp",
-            "args": [],
+            "command": "e:\\DevWeb Workspace\\BlenderVscode\\mcp_server\\.venv\\Scripts\\python.exe",
+            "args": [
+                "-m",
+                "blender_mcp.server"
+            ],
             "env": {
                 "BLENDER_MCP_TOKEN": "${input:blender_token}"
             }

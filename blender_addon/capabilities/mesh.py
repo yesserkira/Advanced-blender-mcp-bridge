@@ -49,8 +49,11 @@ def mesh_create_primitive(args: dict) -> dict:
     op_fn = getattr(bpy.ops.mesh, PRIMITIVES[kind])
     if kind == "torus":
         op_fn(location=location, major_radius=size, minor_radius=size * 0.25)
-    else:
+    elif kind in ("cube", "plane"):
         op_fn(location=location, size=size)
+    else:
+        # sphere, cylinder, cone use 'radius'
+        op_fn(location=location, radius=size)
 
     obj = bpy.context.active_object
     if name:
