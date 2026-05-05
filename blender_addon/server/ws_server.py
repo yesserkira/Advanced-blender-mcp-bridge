@@ -94,13 +94,28 @@ async def _handler(websocket):
 
             main_thread.submit(msg, _resolve, progress_callback=progress_cb)
 
+            # Per-op timeout: client may pass meta.timeout (seconds). Default 30s.
+            op_timeout = 30.0
             try:
-                result = await asyncio.wait_for(future, timeout=30.0)
+                meta_to = (msg.get("meta") or {}).get("timeout")
+                if meta_to is not None:
+                    op_timeout = float(meta_to)
+            except (TypeError, ValueError):
+                pass
+            # Long-running visual ops get a generous default ceiling so they
+            # don't get cut off when the client did not pass meta.timeout.
+            if op in ("render.region", "render.bake_preview",
+                      "render.viewport_screenshot") and op_timeout < 300.0:
+                op_timeout = max(op_timeout, 300.0)
+
+            try:
+                result = await asyncio.wait_for(future, timeout=op_timeout)
             except asyncio.TimeoutError:
                 result = {
                     "id": msg_id,
                     "ok": False,
-                    "error": {"code": "MAIN_THREAD_TIMEOUT", "message": "Command timed out after 30s"},
+                    "error": {"code": "MAIN_THREAD_TIMEOUT",
+                              "message": f"Command timed out after {op_timeout:.0f}s"},
                 }
 
             elapsed = int((time.perf_counter() - start) * 1000)
@@ -118,7 +133,10 @@ async def _handler(websocket):
 async def _serve(host: str, port: int):
     global _server
     import websockets
-    _server = await websockets.serve(_handler, host, port)
+    _server = await websockets.serve(
+        _handler, host, port,
+        max_size=64 * 1024 * 1024,   # 64 MiB — allow large image payloads
+    )
     logger.info("WebSocket server listening on ws://%s:%d", host, port)
     await _server.wait_closed()
 

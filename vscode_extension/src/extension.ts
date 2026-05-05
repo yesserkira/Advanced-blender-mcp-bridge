@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ApprovalServer } from './approval';
 import { ViewportPreviewPanel } from './viewportPreview';
+import { McpTreeProvider, StatusController } from './statusUi';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -13,17 +14,40 @@ export function getOutputChannel(): vscode.OutputChannel {
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const channel = getOutputChannel();
-  channel.appendLine('Blender MCP Bridge extension activated.');
+  channel.appendLine('Blender MCP Bridge v2.0 activated.');
 
-  const showOutputCmd = vscode.commands.registerCommand(
-    'blenderMcp.showOutput',
-    () => {
-      channel.show(true);
-    }
+  // ----- status bar + tree view --------------------------------------------
+  const status = new StatusController(context);
+  const tree = new McpTreeProvider(status);
+  const treeView = vscode.window.createTreeView('blenderMcpView', {
+    treeDataProvider: tree,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(treeView);
+  status.start(5000);
+  context.subscriptions.push({ dispose: () => status.stop() });
+  status.onChange((s) => { if (s === 'connected') { void tree.refreshAuditLog(); } });
+
+  // ----- commands ----------------------------------------------------------
+  context.subscriptions.push(
+    vscode.commands.registerCommand('blenderMcp.showOutput', () => channel.show(true)),
+    vscode.commands.registerCommand('blenderMcp.showStatus', async () => {
+      await vscode.commands.executeCommand('workbench.view.extension.blenderMcp');
+    }),
+    vscode.commands.registerCommand('blenderMcp.reconnect', async () => {
+      await status.poll();
+      await tree.refreshAuditLog();
+    }),
+    vscode.commands.registerCommand('blenderMcp.refreshAuditLog', async () => {
+      await tree.refreshAuditLog();
+    }),
+    vscode.commands.registerCommand('blenderMcp.showViewportPreview', () => {
+      const panel = ViewportPreviewPanel.createOrShow(context);
+      void panel.refreshScreenshot();
+    }),
   );
-  context.subscriptions.push(showOutputCmd);
 
-  // T-503: Approval server
+  // ----- approval server (kept from v1) ------------------------------------
   const config = vscode.workspace.getConfiguration('blenderMcp');
   const approvalServer = new ApprovalServer(context);
   try {
@@ -33,24 +57,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     channel.appendLine(`Failed to start approval server: ${err}`);
   }
   context.subscriptions.push({ dispose: () => { void approvalServer.stop(); } });
-
-  const approveCmd = vscode.commands.registerCommand(
-    'blenderMcp.approveAction',
-    () => {
-      channel.appendLine('Approval server is running. Requests are handled automatically.');
-      channel.show(true);
-    }
-  );
-  context.subscriptions.push(approveCmd);
-
-  // T-504: Viewport preview
-  const previewCmd = vscode.commands.registerCommand(
-    'blenderMcp.showViewportPreview',
-    () => {
-      ViewportPreviewPanel.createOrShow(context);
-    }
-  );
-  context.subscriptions.push(previewCmd);
 
   context.subscriptions.push(channel);
 }

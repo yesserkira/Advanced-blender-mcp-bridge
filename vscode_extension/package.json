@@ -1,8 +1,8 @@
 {
   "name": "blender-mcp-bridge",
   "displayName": "Blender MCP Bridge",
-  "description": "Optional VS Code companion for the Blender MCP Bridge — approval webview, viewport preview, output channel.",
-  "version": "1.0.0",
+  "description": "VS Code companion for the Blender MCP add-on — status bar, sidebar tree view, audit log, viewport preview, and approval webview.",
+  "version": "2.0.0",
   "publisher": "blendervscode",
   "license": "MIT",
   "repository": {
@@ -21,23 +21,83 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "blenderMcp",
+          "title": "Blender MCP",
+          "icon": "media/blender.svg"
+        }
+      ]
+    },
+    "views": {
+      "blenderMcp": [
+        {
+          "id": "blenderMcpView",
+          "name": "Status & Activity",
+          "icon": "media/blender.svg"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "blenderMcp.showOutput",
-        "title": "Blender MCP: Show Output"
+        "title": "Blender MCP: Show Output Channel",
+        "icon": "$(output)"
       },
       {
-        "command": "blenderMcp.approveAction",
-        "title": "Blender MCP: Approve Action"
+        "command": "blenderMcp.showStatus",
+        "title": "Blender MCP: Show Status View",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "blenderMcp.reconnect",
+        "title": "Blender MCP: Reconnect",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "blenderMcp.refreshAuditLog",
+        "title": "Blender MCP: Refresh Audit Log",
+        "icon": "$(refresh)"
       },
       {
         "command": "blenderMcp.showViewportPreview",
-        "title": "Blender MCP: Show Viewport Preview"
+        "title": "Blender MCP: Take Viewport Screenshot",
+        "icon": "$(device-camera)"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "blenderMcp.refreshAuditLog",
+          "when": "view == blenderMcpView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "blenderMcp.reconnect",
+          "when": "view == blenderMcpView",
+          "group": "navigation@2"
+        }
+      ]
+    },
     "configuration": {
       "title": "Blender MCP Bridge",
       "properties": {
+        "blenderMcp.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Hostname of the Blender MCP add-on WebSocket server."
+        },
+        "blenderMcp.port": {
+          "type": "number",
+          "default": 9876,
+          "description": "Port of the Blender MCP add-on WebSocket server."
+        },
+        "blenderMcp.token": {
+          "type": "string",
+          "default": "",
+          "description": "Auth token (overridden by BLENDER_MCP_TOKEN environment variable)."
+        },
         "blenderMcp.viewportPreview.enabled": {
           "type": "boolean",
           "default": false,

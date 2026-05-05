@@ -61,7 +61,7 @@ class BlenderMCPPreferences(bpy.types.AddonPreferences):
     autostart: bpy.props.BoolProperty(
         name="Auto-start Server",
         description="Start the WebSocket server when the add-on is enabled",
-        default=True,
+        default=False,
     )
 
     require_confirm_exec_python: bpy.props.BoolProperty(
@@ -70,16 +70,28 @@ class BlenderMCPPreferences(bpy.types.AddonPreferences):
         default=True,
     )
 
-    # Capability toggles
+    exec_mode: bpy.props.EnumProperty(
+        name="Execute Python Mode",
+        description=(
+            "safe = AST validator + sandbox builtins (recommended). "
+            "trusted = no validation, full builtins (auth token still required)."
+        ),
+        items=[
+            ("safe", "Safe (sandboxed)", "AST-validated, restricted builtins"),
+            ("trusted", "Trusted (full Python)", "No validation; full Python runtime"),
+        ],
+        default="safe",
+    )
+
+    # Capability toggles (cosmetic; enforcement is at MCP server policy layer)
     cap_scene: bpy.props.BoolProperty(name="Scene inspection", default=True)
     cap_mesh: bpy.props.BoolProperty(name="Mesh creation", default=True)
-    cap_material: bpy.props.BoolProperty(name="Materials", default=True)
-    cap_light_camera: bpy.props.BoolProperty(name="Lights & Cameras", default=True)
     cap_modifier: bpy.props.BoolProperty(name="Modifiers", default=True)
     cap_animation: bpy.props.BoolProperty(name="Animation", default=True)
     cap_render: bpy.props.BoolProperty(name="Render / Screenshot", default=True)
     cap_exec_python: bpy.props.BoolProperty(name="Execute Python", default=False)
-    cap_geonodes: bpy.props.BoolProperty(name="Geometry Nodes", default=True)
+    cap_nodes: bpy.props.BoolProperty(name="Node graphs (shader/geo/world)", default=True)
+    cap_assets: bpy.props.BoolProperty(name="Asset import", default=True)
 
     def ensure_token(self):
         if not self.token:
@@ -108,14 +120,14 @@ class BlenderMCPPreferences(bpy.types.AddonPreferences):
         col = layout.column(align=True)
         col.prop(self, "cap_scene")
         col.prop(self, "cap_mesh")
-        col.prop(self, "cap_material")
-        col.prop(self, "cap_light_camera")
         col.prop(self, "cap_modifier")
         col.prop(self, "cap_animation")
         col.prop(self, "cap_render")
-        col.prop(self, "cap_geonodes")
+        col.prop(self, "cap_nodes")
+        col.prop(self, "cap_assets")
         col.prop(self, "cap_exec_python")
         if self.cap_exec_python:
+            layout.prop(self, "exec_mode")
             layout.prop(self, "require_confirm_exec_python")
 
 

@@ -41,7 +41,12 @@ class BlenderWS:
 
         while True:
             try:
-                self._ws = await websockets.connect(self.url)
+                self._ws = await websockets.connect(
+                    self.url,
+                    max_size=64 * 1024 * 1024,   # 64 MiB — allow large PNGs
+                    ping_interval=20,
+                    ping_timeout=20,
+                )
                 self._backoff = 0.5
                 logger.info("Connected to Blender at %s", self.url)
                 return
@@ -77,17 +82,40 @@ class BlenderWS:
                 "op": op,
                 "args": args or {},
                 "auth": self.token,
-                "meta": {"client": "mcp-server/0.1"},
+                "meta": {"client": "mcp-server/0.1", "timeout": timeout},
             }
 
             try:
                 await self._ws.send(json.dumps(cmd))
-                raw = await asyncio.wait_for(self._ws.recv(), timeout=timeout)
+                # Drain any stale messages that don't match our id (e.g. late
+                # responses from a prior call that timed out). We only return
+                # the response whose id matches the one we just sent.
+                deadline = asyncio.get_event_loop().time() + timeout
+                while True:
+                    remaining = deadline - asyncio.get_event_loop().time()
+                    if remaining <= 0:
+                        raise asyncio.TimeoutError(
+                            f"No matching response for {cmd_id} after {timeout}s"
+                        )
+                    raw = await asyncio.wait_for(self._ws.recv(), timeout=remaining)
+                    response = json.loads(raw)
+                    # Skip non-final frames (progress updates etc.)
+                    if response.get("type") == "progress":
+                        logger.debug(
+                            "progress %s%% %s",
+                            (response.get("progress") or {}).get("percent"),
+                            (response.get("progress") or {}).get("message"),
+                        )
+                        continue
+                    if response.get("id") == cmd_id:
+                        break
+                    logger.warning(
+                        "discarding stale response id=%s (waiting for %s)",
+                        response.get("id"), cmd_id,
+                    )
             except (websockets.ConnectionClosed, OSError) as e:
                 self._ws = None
                 raise BlenderError("CONNECTION_LOST", f"Lost connection: {e}")
-
-            response = json.loads(raw)
 
             if not response.get("ok"):
                 err = response.get("error", {})

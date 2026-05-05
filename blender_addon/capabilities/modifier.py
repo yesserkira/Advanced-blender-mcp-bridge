@@ -1,80 +1,138 @@
-"""Modifier capability."""
+"""Generic modifier capability — works with all 30+ Blender modifier types via RNA.
+
+Replaces v1's hard-coded SUBSURF/BEVEL/MIRROR/ARRAY/BOOLEAN switch.
+"""
+
+from __future__ import annotations
+
+from typing import Any
 
 import bpy
 
 from . import register_capability
 
-ALLOWED_TYPES = {"SUBSURF", "BEVEL", "MIRROR", "ARRAY", "BOOLEAN"}
+
+def _coerce_value(prop, value):
+    """Coerce JSON value into the type expected by an RNA property."""
+    if value is None:
+        return None
+    if prop.type == "POINTER":
+        # Accept name string -> resolve via fixed_type collection
+        if isinstance(value, str):
+            fixed = getattr(prop.fixed_type, "identifier", "")
+            if fixed == "Object":
+                return bpy.data.objects.get(value)
+            if fixed == "Material":
+                return bpy.data.materials.get(value)
+            if fixed in {"Mesh", "Curve", "Lattice", "Armature", "Collection",
+                         "Image", "Texture", "NodeTree", "Action"}:
+                coll = {
+                    "Mesh": "meshes", "Curve": "curves", "Lattice": "lattices",
+                    "Armature": "armatures", "Collection": "collections",
+                    "Image": "images", "Texture": "textures",
+                    "NodeTree": "node_groups", "Action": "actions",
+                }[fixed]
+                return getattr(bpy.data, coll).get(value)
+        return value
+    if prop.type in {"INT"} and isinstance(value, (int, float)):
+        return int(value)
+    if prop.type == "FLOAT":
+        if hasattr(prop, "array_length") and prop.array_length > 0 and isinstance(value, (list, tuple)):
+            return tuple(float(v) for v in value)
+        return float(value) if isinstance(value, (int, float)) else value
+    if prop.type == "BOOLEAN":
+        if hasattr(prop, "array_length") and prop.array_length > 0 and isinstance(value, (list, tuple)):
+            return tuple(bool(v) for v in value)
+        return bool(value)
+    return value
 
 
-def modifier_add(args: dict) -> dict:
-    """Add a modifier to an object.
+def add_modifier(args: dict) -> dict:
+    """Add a modifier to an object using RNA introspection.
 
     Args:
         args: {
-            "object_name": str - name of the target object
-            "modifier_type": str - one of SUBSURF, BEVEL, MIRROR, ARRAY, BOOLEAN
-            "modifier_name": str|None - optional display name for the modifier
-            "params": dict|None - modifier-specific parameters
+            "object": str,
+            "type": str (Blender enum: SUBSURF, BEVEL, MIRROR, ARRAY, BOOLEAN,
+                          SOLIDIFY, WIREFRAME, SHRINKWRAP, WELD, DECIMATE,
+                          SCREW, DISPLACE, SMOOTH, REMESH, SKIN, MASK,
+                          NODES, ...),
+            "name": str | None,
+            "properties": dict (RNA property names to set),
         }
     """
-    object_name = args.get("object_name")
-    if not object_name:
-        raise ValueError("'object_name' is required")
-
-    modifier_type = args.get("modifier_type")
-    if modifier_type not in ALLOWED_TYPES:
-        raise ValueError(
-            f"Unknown modifier_type: {modifier_type}. "
-            f"Must be one of: {', '.join(sorted(ALLOWED_TYPES))}"
-        )
-
-    obj = bpy.data.objects.get(object_name)
+    obj_name = args.get("object")
+    mod_type = args.get("type")
+    if not obj_name or not mod_type:
+        raise ValueError("'object' and 'type' are required")
+    obj = bpy.data.objects.get(obj_name)
     if obj is None:
-        raise ValueError(f"Object not found: {object_name}")
-
-    modifier_name = args.get("modifier_name") or modifier_type
-    params = args.get("params", {}) or {}
+        raise ValueError(f"Object not found: {obj_name}")
 
     cmd_id = args.get("_cmd_id", "unknown")
-    bpy.ops.ed.undo_push(message=f"AI:modifier.add:{cmd_id}")
+    bpy.ops.ed.undo_push(message=f"AI:add_modifier:{cmd_id}")
 
-    mod = obj.modifiers.new(name=modifier_name, type=modifier_type)
+    name = args.get("name") or mod_type
+    try:
+        mod = obj.modifiers.new(name=name, type=mod_type)
+    except (TypeError, RuntimeError) as e:
+        raise ValueError(f"Could not create modifier of type '{mod_type}': {e}")
 
-    # Apply type-specific params
-    if modifier_type == "SUBSURF":
-        mod.levels = params.get("levels", 2)
-        mod.render_levels = params.get("render_levels", 2)
-    elif modifier_type == "BEVEL":
-        mod.width = params.get("width", 0.1)
-        mod.segments = params.get("segments", 1)
-    elif modifier_type == "MIRROR":
-        use_axis = params.get("use_axis", [True, False, False])
-        mod.use_axis[0] = use_axis[0]
-        mod.use_axis[1] = use_axis[1]
-        mod.use_axis[2] = use_axis[2]
-    elif modifier_type == "ARRAY":
-        mod.count = params.get("count", 2)
-        offset = params.get("relative_offset_displace", [1, 0, 0])
-        mod.relative_offset_displace[0] = offset[0]
-        mod.relative_offset_displace[1] = offset[1]
-        mod.relative_offset_displace[2] = offset[2]
-    elif modifier_type == "BOOLEAN":
-        operation = params.get("operation", "DIFFERENCE")
-        mod.operation = operation
-        bool_obj_name = params.get("object")
-        if bool_obj_name:
-            bool_obj = bpy.data.objects.get(bool_obj_name)
-            if bool_obj is None:
-                raise ValueError(f"Boolean target object not found: {bool_obj_name}")
-            mod.object = bool_obj
+    properties = args.get("properties") or {}
+    set_props: list[str] = []
+    skipped: list[dict] = []
+
+    rna_props = {p.identifier: p for p in mod.bl_rna.properties}
+    for k, v in properties.items():
+        prop = rna_props.get(k)
+        if prop is None:
+            skipped.append({"name": k, "reason": "not an RNA property"})
+            continue
+        if prop.is_readonly:
+            skipped.append({"name": k, "reason": "readonly"})
+            continue
+        try:
+            coerced = _coerce_value(prop, v)
+            setattr(mod, k, coerced)
+            set_props.append(k)
+        except Exception as e:
+            skipped.append({"name": k, "reason": str(e)})
 
     return {
         "object": obj.name,
-        "modifier_name": mod.name,
-        "modifier_type": mod.type,
+        "modifier": mod.name,
+        "type": mod.type,
         "index": list(obj.modifiers).index(mod),
+        "properties_set": set_props,
+        "skipped": skipped,
     }
 
 
-register_capability("modifier.add", modifier_add)
+register_capability("add_modifier", add_modifier)
+
+
+def remove_modifier(args: dict) -> dict:
+    """Remove a modifier by name.
+
+    Args:
+        args: {"object": str, "name": str}
+    """
+    obj_name = args.get("object")
+    name = args.get("name")
+    if not obj_name or not name:
+        raise ValueError("'object' and 'name' are required")
+    obj = bpy.data.objects.get(obj_name)
+    if obj is None:
+        raise ValueError(f"Object not found: {obj_name}")
+    mod = obj.modifiers.get(name)
+    if mod is None:
+        raise ValueError(f"Modifier '{name}' not found on {obj_name}")
+
+    cmd_id = args.get("_cmd_id", "unknown")
+    bpy.ops.ed.undo_push(message=f"AI:remove_modifier:{cmd_id}")
+
+    obj.modifiers.remove(mod)
+    return {"object": obj.name, "removed": name}
+
+
+register_capability("remove_modifier", remove_modifier)

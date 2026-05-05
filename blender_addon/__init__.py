@@ -6,7 +6,7 @@ import sys
 bl_info = {
     "name": "Blender MCP Bridge",
     "author": "BlenderVscode contributors",
-    "version": (1, 0, 0),
+    "version": (2, 0, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > MCP",
     "description": "WebSocket bridge for AI assistants via MCP",
