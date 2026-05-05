@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { ApprovalServer } from './approval';
 import { ViewportPreviewPanel } from './viewportPreview';
 import { McpTreeProvider, StatusController } from './statusUi';
+import { registerBlenderMcpProvider } from './mcpProvider';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -57,6 +58,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     channel.appendLine(`Failed to start approval server: ${err}`);
   }
   context.subscriptions.push({ dispose: () => { void approvalServer.stop(); } });
+
+  // ----- programmatic MCP server registration (Copilot Chat / Agent mode) ---
+  const { provider } = registerBlenderMcpProvider(context, channel, approvalServer);
+  // Trigger an initial refresh now that approval server has a port.
+  provider.refresh();
 
   context.subscriptions.push(channel);
 }

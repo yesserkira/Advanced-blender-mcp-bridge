@@ -2,7 +2,7 @@
   "name": "blender-mcp-bridge",
   "displayName": "Blender MCP Bridge",
   "description": "VS Code companion for the Blender MCP add-on — status bar, sidebar tree view, audit log, viewport preview, and approval webview.",
-  "version": "2.0.0",
+  "version": "2.1.0-rc2",
   "publisher": "blendervscode",
   "license": "MIT",
   "repository": {
@@ -80,6 +80,12 @@
         }
       ]
     },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "blenderMcp.provider",
+        "label": "Blender MCP"
+      }
+    ],
     "configuration": {
       "title": "Blender MCP Bridge",
       "properties": {
@@ -112,6 +118,16 @@
           "type": "number",
           "default": 0,
           "description": "Port for the approval HTTP server (0 = ephemeral)."
+        },
+        "blenderMcp.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the Python interpreter that has the blender_mcp package installed (e.g. <repo>/mcp_server/.venv/Scripts/python.exe). When set, the extension auto-registers the Blender MCP server with Copilot Chat (Agent mode)."
+        },
+        "blenderMcp.serverModule": {
+          "type": "string",
+          "default": "blender_mcp.server",
+          "description": "Python module to run via `-m` for the MCP server."
         }
       }
     }
