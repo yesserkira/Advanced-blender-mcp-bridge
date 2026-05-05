@@ -348,6 +348,24 @@ async def delete_object(object: str | list[dict] | None = None) -> dict:
     """Delete one or many objects."""
     policy = _get_policy()
     policy.require("delete_object")
+    if policy.confirm_required_for("delete_object"):
+        from .approval import request_approval
+
+        outcome = await request_approval(
+            tool="delete_object",
+            args={"object": object},
+        )
+        if not outcome.available:
+            return {
+                "error": "CONFIRM_REQUIRED",
+                "message": "delete_object requires user confirmation but no approval endpoint is available. Install/start the Blender MCP VS Code extension.",
+                "detail": outcome.error,
+            }
+        if not outcome.approved:
+            return {
+                "error": "CONFIRM_DENIED",
+                "message": "User rejected delete_object via approval prompt.",
+            }
     if isinstance(object, list):
         return await _call("object.delete", {"items": object})
     return await _call("object.delete", {"object": object})
@@ -615,10 +633,24 @@ async def execute_python(
     policy = _get_policy()
     policy.require("execute_python")
     if policy.confirm_required_for("execute_python"):
-        return {
-            "error": "CONFIRM_REQUIRED",
-            "message": "execute_python requires user confirmation (policy)",
-        }
+        from .approval import request_approval
+
+        outcome = await request_approval(
+            tool="execute_python",
+            args={"timeout": timeout, "mode": mode, "code_len": len(code)},
+            code=code,
+        )
+        if not outcome.available:
+            return {
+                "error": "CONFIRM_REQUIRED",
+                "message": "execute_python requires user confirmation but no approval endpoint is available. Install/start the Blender MCP VS Code extension.",
+                "detail": outcome.error,
+            }
+        if not outcome.approved:
+            return {
+                "error": "CONFIRM_DENIED",
+                "message": "User rejected execute_python via approval prompt.",
+            }
     args: dict = {"code": code, "timeout": timeout}
     if mode:
         args["mode"] = mode

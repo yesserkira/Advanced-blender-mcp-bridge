@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,13 +29,24 @@ export class ApprovalServer {
   private readonly _context: vscode.ExtensionContext;
   private _server: http.Server | null = null;
   private _sessionApprovals: Set<string> = new Set();
+  private _csrf: string = '';
+  private _port: number = 0;
+  private _discoveryFile: string | null = null;
 
   constructor(context: vscode.ExtensionContext) {
     this._context = context;
   }
 
+  /** Get the CSRF token (random per session). */
+  getCsrf(): string { return this._csrf; }
+  /** Get the bound port. */
+  getPort(): number { return this._port; }
+  /** Get http://127.0.0.1:PORT base URL. */
+  getBaseUrl(): string { return `http://127.0.0.1:${this._port}`; }
+
   /** Start the HTTP approval server. Returns the actual bound port. */
   async start(port: number = 0): Promise<number> {
+    this._csrf = crypto.randomBytes(32).toString('hex');
     return new Promise<number>((resolve, reject) => {
       const server = http.createServer((req, res) => {
         this._handleRequest(req, res);
@@ -45,6 +59,8 @@ export class ApprovalServer {
         const addr = server.address();
         if (addr && typeof addr !== 'string') {
           this._server = server;
+          this._port = addr.port;
+          this._writeDiscovery();
           resolve(addr.port);
         } else {
           server.close();
@@ -56,6 +72,7 @@ export class ApprovalServer {
 
   /** Stop the HTTP server. */
   async stop(): Promise<void> {
+    this._removeDiscovery();
     return new Promise<void>((resolve) => {
       if (this._server) {
         this._server.close(() => resolve());
@@ -66,11 +83,69 @@ export class ApprovalServer {
     });
   }
 
+  /** Write discovery file for the MCP server to find this approval endpoint. */
+  private _writeDiscovery(): void {
+    try {
+      const dir = approvalDiscoveryDir();
+      fs.mkdirSync(dir, { recursive: true });
+      // Clean up any stale files (dead pid)
+      this._cleanStaleDiscovery(dir);
+      const file = path.join(dir, 'approval.json');
+      const data = {
+        url: this.getBaseUrl(),
+        csrf: this._csrf,
+        pid: process.pid,
+        started_at: new Date().toISOString(),
+      };
+      fs.writeFileSync(file, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
+      this._discoveryFile = file;
+    } catch {
+      // best-effort
+    }
+  }
+
+  private _removeDiscovery(): void {
+    if (this._discoveryFile) {
+      try { fs.unlinkSync(this._discoveryFile); } catch { /* ignore */ }
+      this._discoveryFile = null;
+    }
+  }
+
+  private _cleanStaleDiscovery(dir: string): void {
+    try {
+      const file = path.join(dir, 'approval.json');
+      if (!fs.existsSync(file)) { return; }
+      const raw = fs.readFileSync(file, 'utf-8');
+      const data = JSON.parse(raw) as { pid?: number };
+      if (typeof data.pid === 'number' && !isPidAlive(data.pid)) {
+        fs.unlinkSync(file);
+      }
+    } catch {
+      // ignore — will be overwritten
+    }
+  }
+
   private _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+    // SECURITY: reject non-loopback peers (defence in depth — we already bind 127.0.0.1)
+    const peer = req.socket.remoteAddress ?? '';
+    if (peer && peer !== '127.0.0.1' && peer !== '::1' && peer !== '::ffff:127.0.0.1') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: loopback only' }));
+      return;
+    }
+
     // Only accept POST /approve
     if (req.method !== 'POST' || req.url !== '/approve') {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Not found' }));
+      return;
+    }
+
+    // SECURITY: CSRF check
+    const csrf = (req.headers['x-csrf'] ?? '') as string;
+    if (!this._csrf || !timingSafeEqualStr(csrf, this._csrf)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid CSRF token' }));
       return;
     }
 
@@ -111,8 +186,10 @@ export class ApprovalServer {
       return;
     }
 
-    // Check session auto-approvals
-    if (this._sessionApprovals.has(body.tool)) {
+    // Session approval cache key combines tool + sha256(args) so a different
+    // argument shape (e.g. different code) re-prompts.
+    const argsKey = sessionKey(body.tool, body.args ?? {});
+    if (this._sessionApprovals.has(argsKey)) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ approved: true, remember_session: true }));
       return;
@@ -123,7 +200,7 @@ export class ApprovalServer {
       const result = await ApprovalPanel.createOrShow(this._context, body);
 
       if (result.remember_session) {
-        this._sessionApprovals.add(body.tool);
+        this._sessionApprovals.add(argsKey);
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -232,6 +309,45 @@ class ApprovalPanel {
 
 function getNonce(): string {
   return crypto.randomBytes(16).toString('base64');
+}
+
+/** Discovery-file directory shared with the MCP server. */
+export function approvalDiscoveryDir(): string {
+  if (process.platform === 'win32') {
+    const base = process.env['LOCALAPPDATA'] ?? path.join(os.homedir(), 'AppData', 'Local');
+    return path.join(base, 'BlenderMCP');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Application Support', 'BlenderMCP');
+  }
+  const xdg = process.env['XDG_RUNTIME_DIR'] ?? path.join(os.homedir(), '.local', 'state');
+  return path.join(xdg, 'blender-mcp');
+}
+
+/** Constant-time string compare to avoid timing leaks on CSRF check. */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const ab = Buffer.from(a, 'utf-8');
+  const bb = Buffer.from(b, 'utf-8');
+  if (ab.length !== bb.length) { return false; }
+  return crypto.timingSafeEqual(ab, bb);
+}
+
+/** Cross-platform liveness check for a pid (true = alive or unknown). */
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e: unknown) {
+    const err = e as NodeJS.ErrnoException;
+    return err.code === 'EPERM'; // exists but we can't signal
+  }
+}
+
+/** Stable session-cache key combining tool name and a hash of args. */
+function sessionKey(tool: string, args: Record<string, unknown>): string {
+  const json = JSON.stringify(args, Object.keys(args).sort());
+  const h = crypto.createHash('sha256').update(json).digest('hex').slice(0, 16);
+  return `${tool}:${h}`;
 }
 
 function escapeHtml(unsafe: string): string {
