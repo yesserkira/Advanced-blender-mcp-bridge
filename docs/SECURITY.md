@@ -1,5 +1,22 @@
 # Security — Blender MCP Bridge
 
+> **Looking for the remote-Blender story?** See [docs/REMOTE.md](REMOTE.md). The
+> default deployment is loopback-only; remote bind requires explicit opt-in
+> on three layers (add-on, extension, MCP policy).
+
+> **Default posture (v4.1+).** Out of the box, `execute_python` is **enabled,
+> trusted (no AST sandbox), and does not require per-call approval** — matching
+> the official Blender Foundation MCP server. This means an LLM connected to
+> your Blender can run arbitrary Python without prompting. To restore the
+> hardened defaults:
+> - Blender Preferences → Add-ons → Blender MCP Bridge: set **Execute Python
+>   Mode** to *Safe (sandboxed)* and tick **Confirm execute_python**.
+> - In your `.blendermcp.json` policy, add `"execute_python"` to
+>   `confirm_required` (or to `denied_tools` to disable it entirely; see
+>   [examples/policies/strict.json](../examples/policies/strict.json)).
+> - Loopback bind, auth token, rate limit, audit log, and Phase 9 remote-host
+>   gates are **always on** regardless.
+
 ## Threat model
 
 This system bridges an AI model (untrusted reasoning) to a powerful desktop
@@ -46,7 +63,7 @@ The threat surface is significant and must be treated seriously.
 | T11 | Privilege escalation | AI calls `ctypes`, `importlib`, `builtins` | Sandbox bypass | Medium | AST validator denies all dunder access + specific modules | §14.4 |
 | T12 | Eval/exec bypass | AI uses `eval()`, `exec()`, `compile()` | Arbitrary code in "safe" context | High | AST validator explicitly denies eval/exec/compile | §14.4 |
 
-## Security rules (binding, referenced from PLAN.md §14)
+## Security rules (binding)
 
 ### Rule 1: Loopback-only binding
 - WebSocket server MUST bind to `127.0.0.1` exclusively.

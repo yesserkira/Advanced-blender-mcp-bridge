@@ -1,12 +1,60 @@
 {
+  "_comment": "Strict policy: read-only + low-risk write tools. No execute_python, call_operator, set_property, import_asset, link_blend, or delete_collection. Set allowed_roots to your project folder before using.",
   "allowed_tools": [
     "ping",
-    "get_scene_info",
+    "query",
+    "list",
+    "list_collections",
+    "list_checkpoints",
+    "list_assets",
+    "describe_api",
+    "bbox_info",
+    "get_audit_log",
+    "get_property",
+    "viewport_screenshot",
+    "render_region",
+    "scene_diff",
+    "select",
+    "deselect_all",
+    "set_active",
+    "select_all",
     "create_primitive",
-    "viewport_screenshot"
+    "create_objects",
+    "set_transform",
+    "duplicate_object",
+    "rename",
+    "set_visibility",
+    "set_parent",
+    "clear_parent",
+    "assign_material",
+    "build_nodes",
+    "add_modifier",
+    "remove_modifier",
+    "place_above",
+    "align_to",
+    "look_at",
+    "array_around",
+    "distribute",
+    "apply_to_selection",
+    "set_keyframe",
+    "create_collection",
+    "move_to_collection",
+    "create_checkpoint",
+    "restore_checkpoint",
+    "geonodes_describe_group",
+    "geonodes_list_presets",
+    "geonodes_get_preset",
+    "transaction"
   ],
   "denied_tools": [
-    "execute_python"
+    "execute_python",
+    "call_operator",
+    "set_property",
+    "import_asset",
+    "link_blend",
+    "delete_collection",
+    "delete_object",
+    "bake_preview"
   ],
   "allowed_roots": [],
   "max_polys": 500000,
@@ -14,9 +62,16 @@
   "snapshot_threshold": 3,
   "confirm_required": [
     "delete_object",
-    "execute_python"
+    "delete_collection",
+    "execute_python",
+    "call_operator",
+    "set_property",
+    "restore_checkpoint"
   ],
   "rate_limit": {
-    "mutating_ops_per_10s": 30
-  }
+    "mutating_ops_per_window": 30,
+    "window_seconds": 10.0
+  },
+  "allowed_remote_hosts": [],
+  "require_tls": true
 }

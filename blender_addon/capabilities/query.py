@@ -215,6 +215,25 @@ def _walk(obj: Any, path: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
+def _serialize_node_link(link: Any) -> dict:
+    """Serialize a NodeLink as {from: 'node.socket', to: 'node.socket'}.
+
+    This makes node-tree wiring inspectable without execute_python.
+    """
+    try:
+        return {
+            "$rna": "NodeLink",
+            "from": f"{link.from_node.name}.{link.from_socket.name}",
+            "to": f"{link.to_node.name}.{link.to_socket.name}",
+            "from_socket_type": getattr(link.from_socket, "type", None),
+            "to_socket_type": getattr(link.to_socket, "type", None),
+            "is_valid": getattr(link, "is_valid", True),
+            "is_muted": getattr(link, "is_muted", False),
+        }
+    except Exception as e:
+        return {"$rna": "NodeLink", "$error": str(e)}
+
+
 def _project_fields(item: Any, fields: list[str] | None) -> dict:
     """Project requested fields off an RNA-bearing object.
 
@@ -230,7 +249,10 @@ def _project_fields(item: Any, fields: list[str] | None) -> dict:
                 out[f] = {"$error": str(e)}
         return out
 
-    out: dict = {}
+    # NodeLink — expose from/to node + socket explicitly so users can inspect
+    # the wiring of a node graph without reaching for execute_python.
+    if type(item).__name__ == "NodeLink":
+        return _serialize_node_link(item)
 
     # Items: bpy collection (modifiers, nodes, links, ...)
     if hasattr(item, "__iter__") and not hasattr(item, "bl_rna"):
@@ -247,6 +269,7 @@ def _project_fields(item: Any, fields: list[str] | None) -> dict:
     if rna is None:
         return {"$value": to_jsonable(item)}
 
+    out: dict = {}
     out["$rna"] = rna.identifier
 
     for prop in rna.properties:

@@ -1,0 +1,14 @@
+{
+  "spec": "test/**/*.test.ts",
+  "require": [
+    "./test/setup.js",
+    "ts-node/register"
+  ],
+  "node-option": [
+    "no-experimental-strip-types"
+  ],
+  "extension": [
+    "ts"
+  ],
+  "timeout": 10000
+}

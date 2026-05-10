@@ -5,6 +5,7 @@ from __future__ import annotations
 import bpy
 
 from . import register_capability
+from . import _dryrun
 
 
 def object_transform(args: dict) -> dict:
@@ -24,6 +25,14 @@ def object_transform(args: dict) -> dict:
     obj = bpy.data.objects.get(name)
     if obj is None:
         raise ValueError(f"Object not found: {name}")
+
+    if _dryrun.is_dry_run(args):
+        changes = {k: args[k] for k in ("location", "rotation_euler", "scale")
+                   if k in args and args[k] is not None}
+        return _dryrun.report(
+            "object.transform",
+            [_dryrun.would_modify(f"object:{name}", changes)],
+        )
 
     cmd_id = args.get("_cmd_id", "unknown")
     bpy.ops.ed.undo_push(message=f"AI:object.transform:{cmd_id}")
@@ -58,6 +67,11 @@ def object_delete(args: dict) -> dict:
     obj = bpy.data.objects.get(name)
     if obj is None:
         raise ValueError(f"Object not found: {name}")
+
+    if _dryrun.is_dry_run(args):
+        return _dryrun.report(
+            "object.delete", [_dryrun.would_delete(name)],
+        )
 
     cmd_id = args.get("_cmd_id", "unknown")
     bpy.ops.ed.undo_push(message=f"AI:object.delete:{cmd_id}")

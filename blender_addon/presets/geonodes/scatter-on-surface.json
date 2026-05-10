@@ -1,0 +1,145 @@
+{
+  "$schema_version": 1,
+  "name": "scatter-on-surface",
+  "title": "Scatter instances on surface",
+  "description": "Distributes points on the input geometry's surface, then instances a chosen object on each point. Density and seed are exposed as inputs.",
+  "group": {
+    "name": "BMCP_ScatterOnSurface",
+    "inputs": [
+      {
+        "name": "Geometry",
+        "socket_type": "NodeSocketGeometry"
+      },
+      {
+        "name": "Instance",
+        "socket_type": "NodeSocketObject"
+      },
+      {
+        "name": "Density",
+        "socket_type": "NodeSocketFloat",
+        "default_value": 10.0
+      },
+      {
+        "name": "Seed",
+        "socket_type": "NodeSocketInt",
+        "default_value": 0
+      },
+      {
+        "name": "Scale Min",
+        "socket_type": "NodeSocketFloat",
+        "default_value": 0.5
+      },
+      {
+        "name": "Scale Max",
+        "socket_type": "NodeSocketFloat",
+        "default_value": 1.5
+      }
+    ],
+    "outputs": [
+      {
+        "name": "Geometry",
+        "socket_type": "NodeSocketGeometry"
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "name": "in",
+        "type": "NodeGroupInput"
+      },
+      {
+        "name": "out",
+        "type": "NodeGroupOutput"
+      },
+      {
+        "name": "distrib",
+        "type": "GeometryNodeDistributePointsOnFaces"
+      },
+      {
+        "name": "obj_info",
+        "type": "GeometryNodeObjectInfo",
+        "properties": {
+          "transform_space": "ORIGINAL"
+        }
+      },
+      {
+        "name": "instance",
+        "type": "GeometryNodeInstanceOnPoints"
+      },
+      {
+        "name": "rand_scale",
+        "type": "FunctionNodeRandomValue",
+        "properties": {
+          "data_type": "FLOAT"
+        }
+      },
+      {
+        "name": "scale_inst",
+        "type": "GeometryNodeScaleInstances"
+      },
+      {
+        "name": "join",
+        "type": "GeometryNodeJoinGeometry"
+      }
+    ],
+    "links": [
+      {
+        "from": "in.Geometry",
+        "to": "distrib.Mesh"
+      },
+      {
+        "from": "in.Density",
+        "to": "distrib.Density"
+      },
+      {
+        "from": "in.Seed",
+        "to": "distrib.Seed"
+      },
+      {
+        "from": "in.Instance",
+        "to": "obj_info.Object"
+      },
+      {
+        "from": "distrib.Points",
+        "to": "instance.Points"
+      },
+      {
+        "from": "obj_info.Geometry",
+        "to": "instance.Instance"
+      },
+      {
+        "from": "in.Scale Min",
+        "to": "rand_scale.Min"
+      },
+      {
+        "from": "in.Scale Max",
+        "to": "rand_scale.Max"
+      },
+      {
+        "from": "in.Seed",
+        "to": "rand_scale.Seed"
+      },
+      {
+        "from": "rand_scale.Value",
+        "to": "scale_inst.Scale"
+      },
+      {
+        "from": "instance.Instances",
+        "to": "scale_inst.Instances"
+      },
+      {
+        "from": "in.Geometry",
+        "to": "join.Geometry"
+      },
+      {
+        "from": "scale_inst.Instances",
+        "to": "join.Geometry"
+      },
+      {
+        "from": "join.Geometry",
+        "to": "out.Geometry"
+      }
+    ]
+  }
+}

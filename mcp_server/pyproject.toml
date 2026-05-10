@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "blender-mcp"
-version = "2.0.0"
+version = "1.2.2"
 description = "MCP server bridging AI assistants to Blender"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [
-    { name = "BlenderVscode contributors" },
+    { name = "Advanced Blender MCP Bridge contributors" },
 ]
 keywords = ["blender", "mcp", "model-context-protocol", "ai", "3d"]
 classifiers = [
@@ -34,19 +34,22 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-asyncio",
+    "pytest-benchmark",
+    "pytest-xdist",
     "ruff",
     "mypy",
     "jsonschema",
 ]
 
 [project.urls]
-Homepage = "https://github.com/user/BlenderVscode"
-Repository = "https://github.com/user/BlenderVscode"
-Documentation = "https://github.com/user/BlenderVscode/tree/main/docs"
-Issues = "https://github.com/user/BlenderVscode/issues"
+Homepage = "https://github.com/yesserkira/Advanced-blender-mcp-bridge"
+Repository = "https://github.com/yesserkira/Advanced-blender-mcp-bridge"
+Documentation = "https://github.com/yesserkira/Advanced-blender-mcp-bridge/tree/main/docs"
+Issues = "https://github.com/yesserkira/Advanced-blender-mcp-bridge/issues"
 
 [project.scripts]
 blender-mcp = "blender_mcp.server:main"
+blender-mcp-install = "blender_mcp.installer:main"
 
 [tool.hatch.build.targets.sdist]
 packages = ["blender_mcp"]
@@ -62,7 +65,16 @@ line-length = 100
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = [".", ".."]
+markers = [
+    "bench: micro-benchmarks (skipped unless explicitly selected with -m bench)",
+]
+# Skip benchmarks in the default suite — they're slow and noisy. Run them
+# explicitly with: uv run pytest -m bench --benchmark-only
+addopts = "-m 'not bench'"
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
+
+[dependency-groups]
+dev = []

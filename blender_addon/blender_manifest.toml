@@ -1,0 +1,19 @@
+# Blender Extensions manifest (4.2+).
+# This file coexists with bl_info in __init__.py for backward compat.
+# See: https://docs.blender.org/manual/en/latest/extensions/getting_started.html
+
+schema_version = "1.0.0"
+id = "blender_mcp_bridge"
+name = "Blender MCP Bridge"
+version = "1.2.0"
+tagline = "WebSocket bridge for AI assistants via MCP"
+maintainer = "Advanced Blender MCP Bridge contributors"
+type = "add-on"
+blender_version_min = "4.2.0"
+
+# Optional: website, license
+# website = "https://github.com/..."
+# license = ["SPDX:MIT"]
+
+# Tags help users discover the extension on extensions.blender.org.
+tags = ["Development", "System"]

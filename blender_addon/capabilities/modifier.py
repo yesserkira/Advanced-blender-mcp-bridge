@@ -5,8 +5,6 @@ Replaces v1's hard-coded SUBSURF/BEVEL/MIRROR/ARRAY/BOOLEAN switch.
 
 from __future__ import annotations
 
-from typing import Any
-
 import bpy
 
 from . import register_capability

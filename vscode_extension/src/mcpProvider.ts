@@ -9,6 +9,13 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { ApprovalServer } from './approval';
+import {
+  resolveConnection,
+  startConnectionWatcher,
+  onConnectionFileChanged,
+  isRemoteHost,
+} from './connectionConfig';
+import { onSecretTokenChanged } from './secretToken';
 
 // vscode.lm.registerMcpServerDefinitionProvider was added in 1.99.
 // We feature-detect at runtime so the extension still loads on slightly older
@@ -20,6 +27,18 @@ type LmApi = typeof vscode.lm & {
   ) => vscode.Disposable;
 };
 
+// vscode.McpStdioServerDefinition is also 1.99+. Reference it loosely so the
+// module loads on older VS Code builds where the symbol is absent.
+type VscodeWithMcp = typeof vscode & {
+  McpStdioServerDefinition?: new (
+    label: string,
+    command: string,
+    args?: string[],
+    env?: Record<string, string | number | null>,
+    version?: string,
+  ) => unknown;
+};
+
 export class BlenderMcpProvider {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChangeMcpServerDefinitions = this._onDidChange.event;
@@ -27,6 +46,7 @@ export class BlenderMcpProvider {
   constructor(
     private readonly _channel: vscode.OutputChannel,
     private readonly _approval: ApprovalServer,
+    private readonly _context?: vscode.ExtensionContext,
   ) { }
 
   /** Trigger a re-query (e.g. after settings change). */
@@ -35,9 +55,11 @@ export class BlenderMcpProvider {
   }
 
   // VS Code 1.99 API surface:
-  //   provideMcpServerDefinitions(): Promise<McpServerDefinition[]>
+  //   provideMcpServerDefinitions(token): Promise<McpServerDefinition[]>
   //   resolveMcpServerDefinition?(server, token): McpServerDefinition
-  async provideMcpServerDefinitions(): Promise<unknown[]> {
+  async provideMcpServerDefinitions(
+    _token?: vscode.CancellationToken,
+  ): Promise<unknown[]> {
     const cfg = vscode.workspace.getConfiguration('blenderMcp');
     const pythonPath = (cfg.get<string>('pythonPath') ?? '').trim();
     const serverModule = (cfg.get<string>('serverModule') ?? 'blender_mcp.server').trim();
@@ -69,12 +91,46 @@ export class BlenderMcpProvider {
     }
 
     const env: Record<string, string> = {};
-    const token = (cfg.get<string>('token') ?? '').trim();
-    if (token) {
-      env['BLENDER_MCP_TOKEN'] = token;
+    const { host, port, token: resolvedToken } = resolveConnection();
+
+    // Phase 9: refuse to register the MCP provider against a non-loopback
+    // Blender host unless the user has explicitly acknowledged that host.
+    // The ack lives in globalState keyed by host so a per-host opt-in is
+    // remembered, but a brand-new remote target always re-prompts.
+    if (isRemoteHost(host)) {
+      const ackKey = `blenderMcp.remoteAck:${host}`;
+      const acked = this._context?.globalState.get<boolean>(ackKey, false) ?? false;
+      if (!acked) {
+        this._channel.appendLine(
+          `MCP provider: refusing to register against remote host ${host} ` +
+          `until the user acknowledges via "Blender MCP: Acknowledge remote host".`,
+        );
+        // Best-effort, non-modal nudge. We don't await — provider activation
+        // must stay non-blocking. The user can also run the command manually.
+        void vscode.window
+          .showWarningMessage(
+            `Blender MCP is configured to connect to a non-loopback host (${host}). ` +
+            `Acknowledge the risks before the MCP server is enabled.`,
+            'Acknowledge remote host',
+          )
+          .then((choice) => {
+            if (choice === 'Acknowledge remote host') {
+              void vscode.commands.executeCommand('blenderMcp.acknowledgeRemoteHost');
+            }
+          });
+        return [];
+      }
     }
-    const host = (cfg.get<string>('host') ?? '127.0.0.1').trim();
-    const port = cfg.get<number>('port') ?? 9876;
+
+    if (resolvedToken) {
+      env['BLENDER_MCP_TOKEN'] = resolvedToken;
+    } else {
+      this._channel.appendLine(
+        'MCP provider: no token found (env BLENDER_MCP_TOKEN, ~/.blender_mcp/connection.json, ' +
+        'or blenderMcp.token setting). MCP server will be registered but unauthenticated until ' +
+        'Blender starts.',
+      );
+    }
     env['BLENDER_MCP_URL'] = `ws://${host}:${port}`;
 
     // Plumb the approval endpoint through env so the MCP server discovers it
@@ -85,17 +141,32 @@ export class BlenderMcpProvider {
       env['BLENDER_MCP_APPROVAL_CSRF'] = this._approval.getCsrf();
     }
 
-    // Build the definition. We use a structural object instead of importing
-    // the (possibly-missing) class so we stay compile-safe across versions.
-    const def = {
-      label: 'Blender MCP',
-      command: pythonPath,
-      args: ['-m', serverModule],
-      env,
-    };
+    // VS Code's McpServerDefinition is a discriminated union; downstream code
+    // uses `instanceof` to pick stdio-vs-http transport. Construct the real
+    // class instance whenever it's available, fall back to a plain object on
+    // pre-1.99 builds (where the provider API doesn't exist either, so this
+    // path is unreachable in practice).
+    const v = vscode as VscodeWithMcp;
+    const Ctor = v.McpStdioServerDefinition;
+    const ext = vscode.extensions.getExtension('blendervscode.blender-mcp-bridge');
+    const version = (ext?.packageJSON?.version as string | undefined) ?? undefined;
+
+    let def: unknown;
+    if (Ctor) {
+      def = new Ctor('Blender MCP', pythonPath, ['-m', serverModule], env, version);
+    } else {
+      def = {
+        label: 'Blender MCP',
+        command: pythonPath,
+        args: ['-m', serverModule],
+        env,
+        version,
+      };
+    }
 
     this._channel.appendLine(
-      `MCP provider: registered "blender" -> ${pythonPath} -m ${serverModule}`,
+      `MCP provider: registered "blender" -> ${pythonPath} -m ${serverModule}` +
+      (Ctor ? '' : ' (fallback object — McpStdioServerDefinition class missing)'),
     );
     return [def];
   }
@@ -116,7 +187,7 @@ function workspaceMcpJsonDefinesBlender(channel: vscode.OutputChannel): boolean 
       if (data.servers && Object.prototype.hasOwnProperty.call(data.servers, 'blender')) {
         return true;
       }
-    } catch (e) {
+    } catch (e: unknown) {
       channel.appendLine(`MCP provider: failed to parse ${file}: ${(e as Error).message}`);
     }
   }
@@ -193,7 +264,7 @@ export function registerBlenderMcpProvider(
   channel: vscode.OutputChannel,
   approval: ApprovalServer,
 ): { provider: BlenderMcpProvider; disposable: vscode.Disposable | undefined } {
-  const provider = new BlenderMcpProvider(channel, approval);
+  const provider = new BlenderMcpProvider(channel, approval, context);
   const lm = vscode.lm as LmApi;
   if (typeof lm.registerMcpServerDefinitionProvider !== 'function') {
     channel.appendLine(
@@ -219,6 +290,20 @@ export function registerBlenderMcpProvider(
       }
     }),
   );
+
+  // Watch ~/.blender_mcp/connection.json so when the user starts (or stops)
+  // Blender after VS Code is already running, the MCP server registration is
+  // re-fired with the freshly written token. The watcher itself lives in
+  // connectionConfig.ts; we just subscribe.
+  context.subscriptions.push(startConnectionWatcher());
+  context.subscriptions.push(onConnectionFileChanged(() => {
+    channel.appendLine('MCP provider: connection.json changed; refreshing registration.');
+    provider.refresh();
+  }));
+  context.subscriptions.push(onSecretTokenChanged(() => {
+    channel.appendLine('MCP provider: secret token changed; refreshing registration.');
+    provider.refresh();
+  }));
 
   return { provider, disposable };
 }

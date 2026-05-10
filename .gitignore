@@ -45,9 +45,22 @@ logs/
 *.swo
 *~
 
+# Tool caches
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.benchmarks/
+
 # BlenderMCP runtime
 .blendermcp/
 
 # Local MCP config (contains token)
 .mcp.json
+
+# Local test/debug artefacts
+test_out.txt
+full_test.log
 

@@ -1,0 +1,142 @@
+{
+  "$schema_version": 1,
+  "name": "array-along-curve",
+  "title": "Array along curve",
+  "description": "Instances a chosen object along the input curve at fixed spacing, with optional rotation aligned to the curve's tangent.",
+  "group": {
+    "name": "BMCP_ArrayAlongCurve",
+    "inputs": [
+      {
+        "name": "Curve",
+        "socket_type": "NodeSocketGeometry"
+      },
+      {
+        "name": "Instance",
+        "socket_type": "NodeSocketObject"
+      },
+      {
+        "name": "Count",
+        "socket_type": "NodeSocketInt",
+        "default_value": 20
+      },
+      {
+        "name": "Align Tangent",
+        "socket_type": "NodeSocketBool",
+        "default_value": true
+      },
+      {
+        "name": "Scale",
+        "socket_type": "NodeSocketFloat",
+        "default_value": 1.0
+      }
+    ],
+    "outputs": [
+      {
+        "name": "Geometry",
+        "socket_type": "NodeSocketGeometry"
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "name": "in",
+        "type": "NodeGroupInput"
+      },
+      {
+        "name": "out",
+        "type": "NodeGroupOutput"
+      },
+      {
+        "name": "resample",
+        "type": "GeometryNodeResampleCurve",
+        "properties": {
+          "mode": "COUNT"
+        }
+      },
+      {
+        "name": "to_points",
+        "type": "GeometryNodeCurveToPoints",
+        "properties": {
+          "mode": "EVALUATED"
+        }
+      },
+      {
+        "name": "obj_info",
+        "type": "GeometryNodeObjectInfo",
+        "properties": {
+          "transform_space": "ORIGINAL"
+        }
+      },
+      {
+        "name": "instance",
+        "type": "GeometryNodeInstanceOnPoints"
+      },
+      {
+        "name": "scale_inst",
+        "type": "GeometryNodeScaleInstances"
+      },
+      {
+        "name": "rotate_inst",
+        "type": "GeometryNodeRotateInstances"
+      },
+      {
+        "name": "align",
+        "type": "FunctionNodeAlignEulerToVector",
+        "properties": {
+          "axis": "Z"
+        }
+      }
+    ],
+    "links": [
+      {
+        "from": "in.Curve",
+        "to": "resample.Curve"
+      },
+      {
+        "from": "in.Count",
+        "to": "resample.Count"
+      },
+      {
+        "from": "resample.Curve",
+        "to": "to_points.Curve"
+      },
+      {
+        "from": "to_points.Points",
+        "to": "instance.Points"
+      },
+      {
+        "from": "in.Instance",
+        "to": "obj_info.Object"
+      },
+      {
+        "from": "obj_info.Geometry",
+        "to": "instance.Instance"
+      },
+      {
+        "from": "in.Scale",
+        "to": "scale_inst.Scale"
+      },
+      {
+        "from": "instance.Instances",
+        "to": "scale_inst.Instances"
+      },
+      {
+        "from": "to_points.Tangent",
+        "to": "align.Vector"
+      },
+      {
+        "from": "align.Rotation",
+        "to": "rotate_inst.Rotation"
+      },
+      {
+        "from": "scale_inst.Instances",
+        "to": "rotate_inst.Instances"
+      },
+      {
+        "from": "rotate_inst.Instances",
+        "to": "out.Geometry"
+      }
+    ]
+  }
+}

@@ -77,3 +77,51 @@ jobs:
               jsonschema.Draft7Validator.check_schema(schema)
               print(f'  ✓ {f}')
           "
+
+  blender-integration:
+    # Headless Blender exercises real bpy ops (capabilities/composer/snapshot/
+    # geonodes). The fake-WS suite already covers every MCP wrapper; this job
+    # verifies the add-on side actually runs against Blender's API.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        blender-version: ["4.2.0", "4.3.0"]
+    env:
+      BLENDER_VERSION: ${{ matrix.blender-version }}
+      BLENDER_MAJOR: ${{ startsWith(matrix.blender-version, '4.2') && '4.2' || '4.3' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Blender
+        id: blender-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/blender
+          key: blender-${{ matrix.blender-version }}-linux-x64
+
+      - name: Download Blender
+        if: steps.blender-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euxo pipefail
+          mkdir -p ~/blender
+          URL="https://download.blender.org/release/Blender${BLENDER_MAJOR}/blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          curl -fSL "$URL" -o /tmp/blender.tar.xz
+          tar -xJf /tmp/blender.tar.xz -C ~/blender --strip-components=1
+          rm /tmp/blender.tar.xz
+
+      - name: Install pytest into Blender's bundled Python
+        run: |
+          set -euxo pipefail
+          BPY=$(find ~/blender -type f -name 'python3*' -path '*/bin/*' | head -n 1)
+          echo "Bundled python: $BPY"
+          "$BPY" -m ensurepip --upgrade
+          "$BPY" -m pip install --upgrade pip
+          "$BPY" -m pip install pytest
+
+      - name: Run headless integration tests
+        run: |
+          set -euxo pipefail
+          ~/blender/blender --background --factory-startup \
+            --python tests/integration/run_in_blender.py
+

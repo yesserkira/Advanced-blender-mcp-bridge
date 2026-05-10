@@ -45,7 +45,10 @@ class TestPolicyRequire:
 class TestPolicyConfirm:
     def test_confirm_required_default(self):
         policy = Policy()
-        assert policy.confirm_required_for("execute_python") is True
+        # Phase 9.1: defaults flipped to permissive (match official Blender MCP).
+        # execute_python no longer requires per-call approval; users opt back in
+        # via policy.confirm_required.
+        assert policy.confirm_required_for("execute_python") is False
         assert policy.confirm_required_for("delete_object") is True
         assert policy.confirm_required_for("ping") is False
 
@@ -133,3 +136,40 @@ class TestPolicyLoad:
     def test_load_none_returns_default(self):
         policy = Policy.load(None)
         assert policy.allowed_tools is None
+
+
+class TestPolicyConnectionUrl:
+    def test_loopback_always_allowed(self):
+        # Even with strict allow-list, loopback URLs pass.
+        p = Policy({"allowed_remote_hosts": []})
+        for url in ("ws://127.0.0.1:9876", "ws://localhost:1", "ws://127.10.20.30:80", "ws://[::1]:9876"):
+            p.validate_connection_url(url)
+
+    def test_default_allows_remote(self):
+        Policy().validate_connection_url("ws://blender.example:9876")
+
+    def test_empty_allow_list_blocks_remote(self):
+        p = Policy({"allowed_remote_hosts": []})
+        with pytest.raises(PolicyDenied) as exc:
+            p.validate_connection_url("ws://10.0.0.1:9876")
+        assert exc.value.code == "POLICY_REMOTE_HOST_DENIED"
+
+    def test_explicit_allow_list_permits_named_host(self):
+        p = Policy({"allowed_remote_hosts": ["blender.local"]})
+        p.validate_connection_url("ws://blender.local:9876")
+        with pytest.raises(PolicyDenied):
+            p.validate_connection_url("ws://other.host:9876")
+
+    def test_require_tls_blocks_plain_remote(self):
+        p = Policy({"require_tls": True})
+        with pytest.raises(PolicyDenied) as exc:
+            p.validate_connection_url("ws://blender.local:9876")
+        assert exc.value.code == "POLICY_REQUIRE_TLS"
+        # wss is fine
+        p.validate_connection_url("wss://blender.local:9876")
+        # And loopback never needs TLS
+        p.validate_connection_url("ws://127.0.0.1:9876")
+
+    def test_unknown_scheme_rejected(self):
+        with pytest.raises(PolicyDenied):
+            Policy().validate_connection_url("http://blender.local:9876")

@@ -40,14 +40,23 @@ def _resolve_node_tree(target: str) -> tuple[Any, Any]:
         if world is None:
             world = bpy.data.worlds.new("World")
             scene.world = world
-        if not world.use_nodes:
+        # Blender 5.0 deprecated use_nodes (always True); kept for 4.x compat.
+        if hasattr(world, "use_nodes") and not world.use_nodes:
             world.use_nodes = True
         return world, world.node_tree
 
     if target == "scene.compositor":
         scene = bpy.context.scene
-        if not scene.use_nodes:
+        # Blender 5.0 deprecated use_nodes (always True); kept for 4.x compat.
+        if hasattr(scene, "use_nodes") and not scene.use_nodes:
             scene.use_nodes = True
+        # Blender 5.0 removed scene.node_tree; use compositing_node_group.
+        if hasattr(scene, "compositing_node_group"):
+            tree = scene.compositing_node_group
+            if tree is None:
+                tree = bpy.data.node_groups.new("Compositing", "CompositorNodeTree")
+                scene.compositing_node_group = tree
+            return scene, tree
         return scene, scene.node_tree
 
     # material:Name or material:Name!
@@ -107,17 +116,77 @@ def _resolve_node_tree(target: str) -> tuple[Any, Any]:
 
 
 def _find_socket(sockets, key):
-    """Find a socket by name (case-insensitive) or index."""
+    """Find a socket by name (case-insensitive), type-qualified name, or index.
+
+    Supported forms:
+        int       — direct index, e.g. 6
+        "6"       — string index
+        "A"       — first socket named 'A' (case-insensitive)
+        "A:Color" — first socket named 'A' whose type matches RGBA / Color
+        "A:Float" — first socket named 'A' whose type is VALUE / Float
+        "A:Vector"— first socket named 'A' whose type is VECTOR
+
+    The type-qualified form is critical for nodes like ShaderNodeMix where
+    Float / Vector / Color variants share socket names ('A', 'B', 'Result').
+    """
+    # Direct integer index
     if isinstance(key, int):
+        if key < 0 or key >= len(sockets):
+            raise ValueError(f"Socket index {key} out of range (0..{len(sockets) - 1})")
         return sockets[key]
-    for s in sockets:
-        if s.name == key:
+    if not isinstance(key, str):
+        raise ValueError(f"socket key must be int or str, got {type(key).__name__}")
+
+    # Numeric string index ("6")
+    if key.isdigit() or (key.startswith("-") and key[1:].isdigit()):
+        idx = int(key)
+        if -len(sockets) <= idx < len(sockets):
+            return sockets[idx]
+        raise ValueError(f"Socket index {idx} out of range")
+
+    # Type-qualified ("A:Color")
+    type_alias = {
+        "color": {"RGBA"},
+        "rgba":  {"RGBA"},
+        "float": {"VALUE"},
+        "value": {"VALUE"},
+        "vector": {"VECTOR"},
+        "vec":    {"VECTOR"},
+        "int":    {"INT"},
+        "bool":   {"BOOLEAN"},
+        "string": {"STRING"},
+        "shader": {"SHADER"},
+    }
+    name_part, type_part = key, None
+    if ":" in key:
+        name_part, type_part = key.split(":", 1)
+        type_part = type_part.strip().lower()
+
+    name_lower = name_part.strip().lower()
+    candidates = [s for s in sockets if s.name.lower() == name_lower]
+    if not candidates:
+        # Fall back to exact-case match on full key (legacy behaviour)
+        for s in sockets:
+            if s.name == key:
+                return s
+        available = [f"{s.name}({s.type})" for s in sockets]
+        raise ValueError(f"Socket '{key}' not found. Available: {available}")
+
+    if type_part is None:
+        return candidates[0]
+
+    wanted = type_alias.get(type_part)
+    if wanted is None:
+        # Treat unknown qualifier as exact RNA type match
+        wanted = {type_part.upper()}
+    for s in candidates:
+        if s.type in wanted:
             return s
-    for s in sockets:
-        if s.name.lower() == str(key).lower():
-            return s
-    available = [s.name for s in sockets]
-    raise ValueError(f"Socket '{key}' not found. Available: {available}")
+    available = [f"{s.name}({s.type})" for s in candidates]
+    raise ValueError(
+        f"Socket '{key}' not found with that type. "
+        f"Candidates with name '{name_part}': {available}"
+    )
 
 
 def _coerce_socket_value(socket, value):
@@ -178,6 +247,171 @@ def _set_node_property(node, key, value):
 
 
 # ---------------------------------------------------------------------------
+# Deprecated / removed node types (Blender 4.x changes)
+# ---------------------------------------------------------------------------
+
+# Maps a removed/renamed node type to its closest replacement (or None).
+_DEPRECATED_NODES: dict[str, dict] = {
+    "ShaderNodeTexMusgrave": {
+        "replacement": "ShaderNodeTexNoise",
+        "note": "Musgrave was merged into Noise Texture in Blender 4.1+. "
+                "Use ShaderNodeTexNoise with type='MULTIFRACTAL' (or other modes).",
+    },
+    "ShaderNodeBsdfHair": {
+        "replacement": "ShaderNodeBsdfHairPrincipled",
+        "note": "Use the Principled Hair BSDF.",
+    },
+}
+
+
+def _check_deprecated(ntype: str) -> dict | None:
+    info = _DEPRECATED_NODES.get(ntype)
+    if not info:
+        return None
+    return {"type": ntype, **info}
+
+
+# ---------------------------------------------------------------------------
+# Color Ramp configuration
+# ---------------------------------------------------------------------------
+
+
+def _configure_color_ramp(node, spec: dict | list) -> tuple[bool, str | None]:
+    """Configure a Color Ramp (ValToRGB / Map Range with ramp etc.).
+
+    spec can be either:
+        list of stops: [{"position": 0.0, "color": [r,g,b,a]}, ...]
+        dict: {"interpolation": "LINEAR"|"CONSTANT"|"EASE"|"B_SPLINE"|"CARDINAL"|...,
+               "color_mode": "RGB"|"HSV"|"HSL", "stops": [...]}
+    """
+    ramp = getattr(node, "color_ramp", None)
+    if ramp is None:
+        return False, f"node '{node.name}' has no color_ramp"
+
+    if isinstance(spec, list):
+        stops = spec
+        config = {}
+    else:
+        stops = spec.get("stops") or []
+        config = spec
+
+    if "interpolation" in config:
+        try:
+            ramp.interpolation = config["interpolation"]
+        except Exception as e:
+            return False, f"interpolation: {e}"
+    if "color_mode" in config:
+        try:
+            ramp.color_mode = config["color_mode"]
+        except Exception as e:
+            return False, f"color_mode: {e}"
+    if "hue_interpolation" in config:
+        try:
+            ramp.hue_interpolation = config["hue_interpolation"]
+        except Exception:
+            pass
+
+    if not stops:
+        return True, None
+
+    # Adjust element count: ramp starts with 2 elements
+    elements = ramp.elements
+    while len(elements) > len(stops):
+        elements.remove(elements[-1])
+    while len(elements) < len(stops):
+        elements.new(0.5)
+
+    for i, stop in enumerate(stops):
+        try:
+            elements[i].position = float(stop.get("position", i / max(1, len(stops) - 1)))
+            color = stop.get("color")
+            if color is not None:
+                c = list(color)
+                while len(c) < 4:
+                    c.append(1.0)
+                elements[i].color = c[:4]
+        except Exception as e:
+            return False, f"stop[{i}]: {e}"
+    return True, None
+
+
+# ---------------------------------------------------------------------------
+# Curve / RGB Curves configuration
+# ---------------------------------------------------------------------------
+
+
+def _configure_curves(node, spec: dict) -> tuple[bool, str | None]:
+    """Configure a node with curve mappings (RGBCurves, FloatCurve, VectorCurves).
+
+    spec: {
+        "curves": [
+            {  # one entry per curve channel (R, G, B, Combined / X, Y, Z / value)
+                "points": [{"x": 0.0, "y": 0.0, "handle_type": "AUTO"}, ...],
+                "extend": "EXTRAPOLATED" | "HORIZONTAL"
+            },
+            ...
+        ],
+        "black_level": [r,g,b],   # optional, RGBCurves only
+        "white_level": [r,g,b],   # optional, RGBCurves only
+        "clip": {"min_x":0,"max_x":1,"min_y":0,"max_y":1}  # optional
+    }
+    """
+    mapping = getattr(node, "mapping", None)
+    if mapping is None:
+        return False, f"node '{node.name}' has no curve mapping"
+
+    curves_spec = spec.get("curves") or []
+    for ci, cspec in enumerate(curves_spec):
+        if ci >= len(mapping.curves):
+            break
+        curve = mapping.curves[ci]
+        pts_spec = cspec.get("points") or []
+        # Curves start with 2 points; add/remove to match
+        while len(curve.points) > len(pts_spec) and len(curve.points) > 2:
+            curve.points.remove(curve.points[-1])
+        while len(curve.points) < len(pts_spec):
+            curve.points.new(0.5, 0.5)
+        for pi, p in enumerate(pts_spec):
+            try:
+                curve.points[pi].location = (float(p.get("x", 0)), float(p.get("y", 0)))
+                ht = p.get("handle_type")
+                if ht:
+                    curve.points[pi].handle_type = ht
+            except Exception as e:
+                return False, f"curves[{ci}].points[{pi}]: {e}"
+        if "extend" in cspec:
+            try:
+                curve.extend = cspec["extend"]
+            except Exception:
+                pass
+
+    if "black_level" in spec and hasattr(mapping, "black_level"):
+        try:
+            mapping.black_level = spec["black_level"]
+        except Exception:
+            pass
+    if "white_level" in spec and hasattr(mapping, "white_level"):
+        try:
+            mapping.white_level = spec["white_level"]
+        except Exception:
+            pass
+    clip = spec.get("clip")
+    if clip:
+        for k in ("min_x", "max_x", "min_y", "max_y"):
+            if k in clip and hasattr(mapping, k):
+                try:
+                    setattr(mapping, k, float(clip[k]))
+                except Exception:
+                    pass
+
+    try:
+        mapping.update()
+    except Exception:
+        pass
+    return True, None
+
+
+# ---------------------------------------------------------------------------
 # build_nodes
 # ---------------------------------------------------------------------------
 
@@ -223,9 +457,6 @@ def build_nodes(args: dict) -> dict:
 
     if clear:
         # Clear all nodes; for geometry-node trees, recreate Group I/O.
-        is_group = tree.bl_rna.identifier in {
-            "GeometryNodeTree", "ShaderNodeTree", "CompositorNodeTree", "TextureNodeTree"
-        } and not (host and host.bl_rna.identifier in {"Material", "World", "Scene"})
         for n in list(tree.nodes):
             tree.nodes.remove(n)
         # Re-add minimal output for materials/world to keep tree usable
@@ -253,6 +484,45 @@ def build_nodes(args: dict) -> dict:
             node_map[n.label] = n
 
     # ------------------------------------------------------------------
+    # Selective removal (only meaningful when clear=False, otherwise the
+    # tree was already wiped). Lets the AI surgically edit an existing
+    # graph instead of rebuilding from scratch.
+    # ------------------------------------------------------------------
+    removed_nodes: list[str] = []
+    removed_links: list[dict] = []
+    if not clear:
+        for nname in (graph.get("remove_nodes") or []):
+            n = node_map.get(nname) or tree.nodes.get(nname)
+            if n is not None:
+                tree.nodes.remove(n)
+                removed_nodes.append(nname)
+                # Drop from map
+                node_map.pop(nname, None)
+        for spec in (graph.get("remove_links") or []):
+            try:
+                from_str = spec.get("from")
+                to_str = spec.get("to")
+                if not from_str or not to_str:
+                    continue
+                from_name, from_sock = from_str.split(".", 1)
+                to_name, to_sock = to_str.split(".", 1)
+                target_link = None
+                for lk in tree.links:
+                    if (
+                        lk.from_node.name == from_name
+                        and lk.to_node.name == to_name
+                        and lk.from_socket.name == from_sock
+                        and lk.to_socket.name == to_sock
+                    ):
+                        target_link = lk
+                        break
+                if target_link is not None:
+                    tree.links.remove(target_link)
+                    removed_links.append({"from": from_str, "to": to_str})
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
     # Interface sockets (Group Input / Group Output exposed parameters).
     # Only meaningful for trees that have a tree.interface (geo nodes,
     # node groups). For materials/world/compositor this is skipped.
@@ -267,7 +537,7 @@ def build_nodes(args: dict) -> dict:
                     tree.interface.remove(item)
                 except Exception:
                     pass
-        for ii, isk in enumerate(iface_def):
+        for isk in iface_def:
             try:
                 name = isk["name"]
                 in_out = isk.get("in_out", "INPUT").upper()
@@ -304,12 +574,25 @@ def build_nodes(args: dict) -> dict:
 
     created: list[str] = []
     skipped_props: list[dict] = []
+    warnings: list[dict] = []
 
     for i, ndef in enumerate(nodes_def):
         ntype = ndef.get("type")
         nid = ndef.get("name") or ndef.get("id") or f"node_{i}"
         if not ntype:
             raise ValueError(f"node[{i}]: 'type' is required")
+
+        # Deprecation check (e.g. ShaderNodeTexMusgrave -> ShaderNodeTexNoise in 4.1+)
+        dep = _check_deprecated(ntype)
+        if dep:
+            warnings.append({
+                "node": nid,
+                "kind": "deprecated_type",
+                "requested": ntype,
+                "replacement": dep["replacement"],
+                "note": dep["note"],
+            })
+            ntype = dep["replacement"]
 
         try:
             node = tree.nodes.new(ntype)
@@ -346,6 +629,23 @@ def build_nodes(args: dict) -> dict:
                     "node": nid, "kind": "property", "name": pk, "reason": reason,
                 })
 
+        # Color ramp configuration (ShaderNodeValToRGB and similar)
+        if "color_ramp" in ndef:
+            ok, reason = _configure_color_ramp(node, ndef["color_ramp"])
+            if not ok:
+                skipped_props.append({
+                    "node": nid, "kind": "color_ramp", "name": "color_ramp", "reason": reason,
+                })
+
+        # Curve mapping (ShaderNodeRGBCurve, ShaderNodeFloatCurve, CompositorNodeCurveRGB, ...)
+        if "curves" in ndef or "curve_mapping" in ndef:
+            spec = ndef.get("curve_mapping") or {"curves": ndef.get("curves")}
+            ok, reason = _configure_curves(node, spec)
+            if not ok:
+                skipped_props.append({
+                    "node": nid, "kind": "curves", "name": "mapping", "reason": reason,
+                })
+
         node_map[nid] = node
         node_map[node.name] = node
         created.append(node.name)
@@ -379,9 +679,12 @@ def build_nodes(args: dict) -> dict:
         "node_count": len(tree.nodes),
         "link_count": len(tree.links),
         "created": created,
+        "removed_nodes": removed_nodes,
+        "removed_links": removed_links,
         "skipped_properties": skipped_props,
         "links": link_results,
         "interface": iface_results,
+        "warnings": warnings,
     }
 
 

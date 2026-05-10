@@ -3,14 +3,88 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
 import tempfile
+from pathlib import Path
 
 import bpy
 
 from . import register_capability
 
 MAX_RESOLUTION = 4096
+
+# Keep the on-disk render cache bounded. GC runs at add-on register time and
+# also opportunistically after every write.
+RENDER_CACHE_MAX_FILES = 50
+
+
+def _render_cache_dir() -> Path:
+    """Return the cache dir for ``transport="file"`` renders.
+
+    Uses the same %LOCALAPPDATA%\\BlenderMCP convention as the audit log
+    and checkpoint store. Created on demand.
+    """
+    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    p = Path(base) / "BlenderMCP" / "renders"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def gc_render_cache(max_files: int = RENDER_CACHE_MAX_FILES) -> int:
+    """Prune the render cache to the ``max_files`` most-recent PNGs.
+
+    Returns the number of files deleted. Safe to call from the add-on
+    register hook.
+    """
+    try:
+        d = _render_cache_dir()
+    except OSError:
+        return 0
+    files = sorted(
+        (f for f in d.iterdir() if f.is_file() and f.suffix == ".png"),
+        key=lambda f: f.stat().st_mtime,
+        reverse=True,
+    )
+    deleted = 0
+    for stale in files[max_files:]:
+        try:
+            stale.unlink()
+            deleted += 1
+        except OSError:
+            pass
+    return deleted
+
+
+def _emit_image(png_bytes: bytes, transport: str, extra: dict) -> dict:
+    """Package PNG bytes into a transport-appropriate response.
+
+    transport="base64" (default) inlines the PNG; transport="file" writes it
+    to the render cache and returns ``image_path`` + ``image_sha256``. The
+    sha256 is computed in both modes so callers can dedupe identical renders.
+    """
+    sha = hashlib.sha256(png_bytes).hexdigest()
+    out = {
+        "mime": "image/png",
+        "size_bytes": len(png_bytes),
+        "image_sha256": sha,
+        **extra,
+    }
+    if transport == "file":
+        target = _render_cache_dir() / f"{sha}.png"
+        if not target.exists():
+            # Write atomically: temp file + rename, so a partially-written PNG
+            # is never observable by a reader (extension reads via fs.readFile).
+            tmp_target = target.with_suffix(".png.tmp")
+            with open(tmp_target, "wb") as f:
+                f.write(png_bytes)
+            os.replace(tmp_target, target)
+        out["image_path"] = str(target)
+        # Opportunistic GC — cheap (single dir scan, ~50 entries).
+        gc_render_cache()
+    else:
+        out["image_base64"] = base64.b64encode(png_bytes).decode("ascii")
+    return out
 
 
 def _read_png_b64(path: str) -> bytes:
@@ -92,13 +166,11 @@ def viewport_screenshot(args: dict, progress_callback=None) -> dict:
             progress_callback(80, "encoding")
 
         png_bytes = _read_png_b64(tmp_path)
-        return {
-            "image_base64": base64.b64encode(png_bytes).decode("ascii"),
-            "mime": "image/png",
-            "width": w,
-            "height": h,
-            "size_bytes": len(png_bytes),
-        }
+        return _emit_image(
+            png_bytes,
+            str(args.get("transport", "base64")),
+            {"width": w, "height": h},
+        )
     finally:
         scene.render.resolution_x = saved["x"]
         scene.render.resolution_y = saved["y"]
@@ -118,15 +190,6 @@ def viewport_screenshot(args: dict, progress_callback=None) -> dict:
 
 
 register_capability("render.viewport_screenshot", viewport_screenshot)
-
-
-def _find_view3d_space():
-    for area in bpy.context.screen.areas:
-        if area.type == "VIEW_3D":
-            for sp in area.spaces:
-                if sp.type == "VIEW_3D":
-                    return sp
-    return None
 
 
 def _find_view3d_context():
@@ -243,14 +306,15 @@ def render_region(args: dict, progress_callback=None) -> dict:
             progress_callback(90, "encoding")
 
         png_bytes = _read_png_b64(tmp_path)
-        return {
-            "image_base64": base64.b64encode(png_bytes).decode("ascii"),
-            "mime": "image/png",
-            "x": x, "y": y, "w": w, "h": h,
-            "samples": samples,
-            "engine": render.engine,
-            "size_bytes": len(png_bytes),
-        }
+        return _emit_image(
+            png_bytes,
+            str(args.get("transport", "base64")),
+            {
+                "x": x, "y": y, "w": w, "h": h,
+                "samples": samples,
+                "engine": render.engine,
+            },
+        )
     finally:
         render.resolution_x = saved["x"]
         render.resolution_y = saved["y"]
@@ -332,8 +396,9 @@ def bake_preview(args: dict) -> dict:
         preview_scene.render.image_settings.file_format = "PNG"
         if hasattr(preview_scene, "eevee"):
             preview_scene.eevee.taa_render_samples = 16
-        # Prefer EEVEE for speed if available
-        for engine in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE"):
+        # Prefer EEVEE for speed if available.
+        # Blender 5.0 renamed BLENDER_EEVEE_NEXT back to BLENDER_EEVEE.
+        for engine in ("BLENDER_EEVEE", "BLENDER_EEVEE_NEXT"):
             try:
                 preview_scene.render.engine = engine
                 break
@@ -348,13 +413,15 @@ def bake_preview(args: dict) -> dict:
         bpy.ops.render.render(write_still=True)
         png_bytes = _read_png_b64(tmp_path)
 
-        return {
-            "image_base64": base64.b64encode(png_bytes).decode("ascii"),
-            "mime": "image/png",
-            "material": mat.name,
-            "width": w,
-            "height": h,
-        }
+        return _emit_image(
+            png_bytes,
+            str(args.get("transport", "base64")),
+            {
+                "material": mat.name,
+                "width": w,
+                "height": h,
+            },
+        )
     finally:
         bpy.context.window.scene = saved_scene
         try:

@@ -2,14 +2,17 @@
   "name": "blender-mcp-bridge",
   "displayName": "Blender MCP Bridge",
   "description": "VS Code companion for the Blender MCP add-on — status bar, sidebar tree view, audit log, viewport preview, and approval webview.",
-  "version": "2.1.0-rc2",
+  "version": "1.2.0",
   "publisher": "blendervscode",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/BlenderVscode"
+    "url": "https://github.com/yesserkira/Advanced-blender-mcp-bridge"
   },
-  "homepage": "https://github.com/user/BlenderVscode",
+  "homepage": "https://github.com/yesserkira/Advanced-blender-mcp-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/yesserkira/Advanced-blender-mcp-bridge/issues"
+  },
   "engines": {
     "vscode": "^1.99.0"
   },
@@ -64,10 +67,69 @@
         "command": "blenderMcp.showViewportPreview",
         "title": "Blender MCP: Take Viewport Screenshot",
         "icon": "$(device-camera)"
+      },
+      {
+        "command": "blenderMcp.setToken",
+        "title": "Blender MCP: Set Auth Token",
+        "icon": "$(key)"
+      },
+      {
+        "command": "blenderMcp.installAddon",
+        "title": "Blender MCP: Install Add-on into Blender",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "blenderMcp.detectPython",
+        "title": "Blender MCP: Detect Python Interpreter",
+        "icon": "$(search)"
+      },
+      {
+        "command": "blenderMcp.openWalkthrough",
+        "title": "Blender MCP: Open Setup Walkthrough",
+        "icon": "$(book)"
+      },
+      {
+        "command": "blenderMcp.audit.showEntry",
+        "title": "Blender MCP: Show Audit Entry"
+      },
+      {
+        "command": "blenderMcp.audit.filter",
+        "title": "Blender MCP: Filter Audit Log",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "blenderMcp.snippet.run",
+        "title": "Blender MCP: Send Snippet to Copilot Chat"
+      },
+      {
+        "command": "blenderMcp.snippet.copy",
+        "title": "Blender MCP: Copy Snippet Prompt",
+        "icon": "$(clippy)"
+      },
+      {
+        "command": "blenderMcp.telemetry.deleteAll",
+        "title": "Blender MCP: Delete All Telemetry"
+      },
+      {
+        "command": "blenderMcp.telemetry.openFolder",
+        "title": "Blender MCP: Open Telemetry Folder"
+      },
+      {
+        "command": "blenderMcp.acknowledgeRemoteHost",
+        "title": "Blender MCP: Acknowledge Remote Host"
+      },
+      {
+        "command": "blenderMcp.revokeRemoteHost",
+        "title": "Blender MCP: Revoke Remote Host Acknowledgement"
       }
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "blenderMcp.audit.filter",
+          "when": "view == blenderMcpView",
+          "group": "navigation@0"
+        },
         {
           "command": "blenderMcp.refreshAuditLog",
           "when": "view == blenderMcpView",
@@ -77,6 +139,13 @@
           "command": "blenderMcp.reconnect",
           "when": "view == blenderMcpView",
           "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "blenderMcp.snippet.copy",
+          "when": "view == blenderMcpView && viewItem == blenderMcpSnippet",
+          "group": "inline"
         }
       ]
     },
@@ -102,7 +171,8 @@
         "blenderMcp.token": {
           "type": "string",
           "default": "",
-          "description": "Auth token (overridden by BLENDER_MCP_TOKEN environment variable)."
+          "markdownDescription": "**Deprecated.** Tokens are now stored in VS Code SecretStorage. Use the **Blender MCP: Set Auth Token** command. Existing values in this setting are migrated automatically on first activation, then cleared.",
+          "markdownDeprecationMessage": "Use the **Blender MCP: Set Auth Token** command. This setting will be removed in a future release."
         },
         "blenderMcp.viewportPreview.enabled": {
           "type": "boolean",
@@ -128,24 +198,108 @@
           "type": "string",
           "default": "blender_mcp.server",
           "description": "Python module to run via `-m` for the MCP server."
+        },
+        "blenderMcp.logLevel": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug"
+          ],
+          "default": "info",
+          "description": "Verbosity for the Blender MCP output channel."
+        },
+        "blenderMcp.telemetry.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Aggregate the Blender add-on audit log into a local-only daily summary at `~/.blender_mcp/telemetry/`. **Nothing is sent off your machine.** Disabled by default."
+        },
+        "blenderMcp.telemetry.historyDays": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Number of days of telemetry summaries to keep. Older files are deleted on extension activation."
         }
       }
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "blenderMcp.setup",
+        "title": "Set up Blender MCP Bridge",
+        "description": "Install the add-on, pick a Python interpreter, start Blender, and verify the connection.",
+        "steps": [
+          {
+            "id": "installAddon",
+            "title": "Install the Blender add-on",
+            "description": "Copy the bundled add-on into Blender's user-scripts directory.\n[Install Add-on](command:blenderMcp.installAddon)",
+            "media": {
+              "markdown": "media/walkthrough/install-addon.md"
+            },
+            "completionEvents": [
+              "onCommand:blenderMcp.installAddon"
+            ]
+          },
+          {
+            "id": "detectPython",
+            "title": "Pick a Python interpreter",
+            "description": "Auto-detect a Python venv with the blender_mcp package.\n[Detect Python](command:blenderMcp.detectPython)",
+            "media": {
+              "markdown": "media/walkthrough/detect-python.md"
+            },
+            "completionEvents": [
+              "onSettingChanged:blenderMcp.pythonPath"
+            ]
+          },
+          {
+            "id": "startBlender",
+            "title": "Start Blender and enable the add-on",
+            "description": "Launch Blender and tick the Blender MCP Bridge add-on in Preferences.",
+            "media": {
+              "markdown": "media/walkthrough/start-blender.md"
+            },
+            "completionEvents": [
+              "onContext:blenderMcp.connected"
+            ]
+          },
+          {
+            "id": "verify",
+            "title": "Verify the connection",
+            "description": "Open the Blender MCP view and confirm the status bar shows connected.\n[Open View](command:blenderMcp.showStatus)",
+            "media": {
+              "markdown": "media/walkthrough/verify.md"
+            },
+            "completionEvents": [
+              "onCommand:blenderMcp.showStatus"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "node scripts/copy-addon.js && npm run typecheck && npm run bundle",
     "compile": "tsc -p ./",
+    "typecheck": "tsc -p ./ --noEmit",
+    "bundle": "node esbuild.mjs",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src"
+    "copy-addon": "node scripts/copy-addon.js",
+    "lint": "eslint src",
+    "test": "mocha"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.99.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.0.0",
+    "adm-zip": "^0.5.17",
+    "esbuild": "^0.28.0",
     "mocha": "^11.7.5",
+    "ts-node": "^10.9.2",
     "typescript": "^5.5.0"
   }
 }

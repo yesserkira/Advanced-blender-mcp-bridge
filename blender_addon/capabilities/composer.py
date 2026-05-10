@@ -8,11 +8,11 @@ Tools registered:
 
 from __future__ import annotations
 
-from typing import Any
 
 import bpy
 
 from . import OP_REGISTRY, register_capability
+from . import _dryrun
 
 
 # ---------------------------------------------------------------------------
@@ -204,10 +204,19 @@ def create_objects(args: dict) -> dict:
         args: {"specs": [ {kind, name?, location?, rotation?, scale?,
                           material?, modifiers?, parent?, collection?,
                           properties?, ...spec-specific...}, ... ]}
+
+    When `args["__dry_run"]` is True, returns the planned creations without
+    touching Blender state. See capabilities/_dryrun.py.
     """
     specs = args.get("specs")
     if not isinstance(specs, list) or not specs:
         raise ValueError("'specs' must be a non-empty list")
+
+    if _dryrun.is_dry_run(args):
+        return _dryrun.report(
+            "create_objects",
+            [_dryrun.would_create(s) for s in specs if isinstance(s, dict)],
+        )
 
     cmd_id = args.get("_cmd_id", "unknown")
     bpy.ops.ed.undo_push(message=f"AI:create_objects:{cmd_id}:n={len(specs)}")

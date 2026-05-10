@@ -1,0 +1,75 @@
+{
+    "$schema": "./snippets.schema.json",
+    "snippets": [
+        {
+            "id": "scene.inspect",
+            "category": "Scene",
+            "label": "Inspect current scene",
+            "description": "Get a quick overview of objects, selection, units, and camera.",
+            "prompt": "Call ping to show me the current Blender scene state — units, render engine, active camera, object counts, and what's selected. Then summarise in one paragraph."
+        },
+        {
+            "id": "scene.list",
+            "category": "Scene",
+            "label": "List all objects",
+            "description": "Enumerate every object in the scene with its type and parent.",
+            "prompt": "List every object in the Blender scene. For each: name, type, and parent collection. Group the output by collection."
+        },
+        {
+            "id": "geo.chair",
+            "category": "Geometry",
+            "label": "Build a simple wooden chair",
+            "description": "Compose a stylised chair from primitives, properly placed.",
+            "prompt": "Build a simple stylised wooden chair: seat, backrest, four legs. Use the spatial helpers (place_above, array_around) so the legs sit correctly on the floor and the seat is centred above them. Apply a wood-coloured PBR material. Take a viewport screenshot when done."
+        },
+        {
+            "id": "geo.arch",
+            "category": "Geometry",
+            "label": "Create a stone arch",
+            "description": "Build an arch from blocks using array helpers.",
+            "prompt": "Create a stone arch made of blocks using array_around for the curved top and a stack of blocks for each pillar. Apply a rough grey stone PBR material. Centre it at the world origin and take a viewport screenshot."
+        },
+        {
+            "id": "mat.metal",
+            "category": "Materials",
+            "label": "Apply a brushed-metal PBR material",
+            "description": "Assign a brushed-metal shader to the active object.",
+            "prompt": "Assign a brushed-metal PBR material to the active object: dark grey base color, metallic 1.0, roughness 0.35, slight anisotropy if available. Take a viewport screenshot afterwards."
+        },
+        {
+            "id": "mat.glass",
+            "category": "Materials",
+            "label": "Build a glass shader",
+            "description": "Create a clear glass material with a small amount of roughness.",
+            "prompt": "Build a clear glass material on the active object using a Principled BSDF: transmission 1.0, roughness 0.05, IOR 1.45. Switch the render engine to Cycles for a real preview, then take a viewport screenshot."
+        },
+        {
+            "id": "light.three_point",
+            "category": "Lighting",
+            "label": "Set up a 3-point lighting rig",
+            "description": "Add key, fill, and rim lights aimed at the active object.",
+            "prompt": "Set up a 3-point lighting rig aimed at the active object: a strong key light at front-right, a softer fill light at front-left, and a rim/back light behind it. Use look_at so each light points at the active object. Take a viewport screenshot."
+        },
+        {
+            "id": "light.hdri",
+            "category": "Lighting",
+            "label": "Add an HDRI world",
+            "description": "Build a world shader with an Environment Texture.",
+            "prompt": "Build a world shader using an Environment Texture node feeding a Background. If no HDRI is available, use a Sky Texture (Nishita) with sun elevation around 30°. Take a viewport screenshot."
+        },
+        {
+            "id": "render.camera_1080",
+            "category": "Render",
+            "label": "Render the active camera at 1080p",
+            "description": "Set 1920x1080, render, and report the output path.",
+            "prompt": "Set the render resolution to 1920x1080, render the active camera, save the result, and report the output file path. Use the existing render engine — don't switch."
+        },
+        {
+            "id": "render.viewport",
+            "category": "Render",
+            "label": "Take a viewport screenshot",
+            "description": "Quick viewport capture for visual confirmation.",
+            "prompt": "Take a viewport screenshot at the current view and show it to me."
+        }
+    ]
+}

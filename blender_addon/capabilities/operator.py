@@ -68,6 +68,9 @@ def call_operator(args: dict) -> dict:
             "operator": str  (e.g. "object.shade_smooth", "mesh.primitive_uv_sphere_add"),
             "kwargs": dict (default {}),
             "execution_context": str | None ("INVOKE_DEFAULT", "EXEC_DEFAULT", ...),
+            "select": list[str] | None,  # objects to select before running
+            "active": str | None,        # object to make active before running
+            "deselect_others": bool,     # default True when 'select' is given
         }
     """
     op = args.get("operator")
@@ -94,19 +97,154 @@ def call_operator(args: dict) -> dict:
     cmd_id = args.get("_cmd_id", "unknown")
     bpy.ops.ed.undo_push(message=f"AI:call_operator:{op}:{cmd_id}")
 
+    # ---- Optional selection / active context ----
+    select_names = args.get("select")
+    active_name = args.get("active")
+    deselect_others = bool(args.get("deselect_others", True))
+    if select_names is not None or active_name is not None:
+        try:
+            if bpy.context.mode != "OBJECT":
+                bpy.ops.object.mode_set(mode="OBJECT")
+        except Exception:
+            pass
+        if deselect_others:
+            for o in bpy.context.view_layer.objects:
+                o.select_set(False)
+        if select_names:
+            for n in select_names:
+                obj = bpy.data.objects.get(n)
+                if obj is None:
+                    raise ValueError(f"select target not found: {n}")
+                try:
+                    obj.select_set(True)
+                except RuntimeError as e:
+                    raise ValueError(f"cannot select '{n}': {e}")
+        if active_name:
+            obj = bpy.data.objects.get(active_name)
+            if obj is None:
+                raise ValueError(f"active target not found: {active_name}")
+            try:
+                obj.select_set(True)
+            except RuntimeError:
+                pass
+            bpy.context.view_layer.objects.active = obj
+        elif select_names:
+            # Default active to last in select list
+            last = bpy.data.objects.get(select_names[-1])
+            if last is not None:
+                bpy.context.view_layer.objects.active = last
+
     if exec_ctx:
         result = fn(exec_ctx, **kwargs)
     else:
         result = fn(**kwargs)
 
     # bpy.ops returns a set like {'FINISHED'}, {'CANCELLED'}
-    return {
+    result_list = list(result)
+    active = bpy.context.active_object
+    selected = [o.name for o in bpy.context.selected_objects]
+    base = {
         "operator": op,
-        "result": list(result),
-        "active_object": (
-            bpy.context.active_object.name if bpy.context.active_object else None
-        ),
+        "result": result_list,
+        "active_object": active.name if active else None,
+        "selected": selected,
     }
+
+    # ---- R-1: structured diagnostic on CANCELLED ----
+    if "CANCELLED" in result_list:
+        expected_mode = _EXPECTED_MODE.get(module_name)
+        current_mode = bpy.context.mode
+        area_type = None
+        try:
+            area_type = bpy.context.area.type if bpy.context.area else None
+        except AttributeError:
+            area_type = None
+        hint = _diagnostic_hint(
+            op=op, module_name=module_name,
+            expected_mode=expected_mode, current_mode=current_mode,
+            active=active, selected=selected, area_type=area_type,
+        )
+        base.update({
+            "ok": False,
+            "code": "OP_CANCELLED",
+            "current_mode": current_mode,
+            "expected_mode": expected_mode,
+            "area_type": area_type,
+            "active_type": active.type if active else None,
+            "hint": hint,
+        })
+    else:
+        base["ok"] = True
+    return base
+
+
+# --- diagnostic helpers (R-1) ---------------------------------------------
+
+# Maps the operator's submodule name to the mode that submodule typically
+# requires. Used for the structured CANCELLED diagnostic.
+_EXPECTED_MODE: dict[str, str] = {
+    "mesh": "EDIT_MESH",
+    "curve": "EDIT_CURVE",
+    "armature": "EDIT_ARMATURE",
+    "pose": "POSE",
+    "uv": "EDIT_MESH",
+    "transform": "OBJECT",  # works in EDIT too, but most callers want OBJECT
+    "object": "OBJECT",
+    "particle": "PARTICLE",
+    "sculpt": "SCULPT",
+    "paint": "PAINT_TEXTURE",
+}
+
+
+def _diagnostic_hint(
+    *,
+    op: str, module_name: str,
+    expected_mode: str | None, current_mode: str,
+    active, selected: list[str], area_type: str | None,
+) -> str:
+    """Heuristic single-line hint to help the caller (AI) recover."""
+    if expected_mode and current_mode != expected_mode:
+        # cross-check object compatibility for EDIT_*
+        if expected_mode.startswith("EDIT_"):
+            need_type = expected_mode.split("_", 1)[1]
+            if active is None:
+                return (
+                    f"Operator '{op}' needs {expected_mode} but no object is active. "
+                    f"Set an active {need_type} object (set_active or select)."
+                )
+            if active.type != need_type:
+                return (
+                    f"Operator '{op}' needs an active {need_type}, but the "
+                    f"active object '{active.name}' is type {active.type}."
+                )
+            return (
+                f"Operator '{op}' needs mode {expected_mode}; currently {current_mode}. "
+                f"Call set_mode(object='{active.name}', mode='EDIT')."
+            )
+        if expected_mode == "POSE":
+            if active is None or active.type != "ARMATURE":
+                return (
+                    f"Operator '{op}' needs an active ARMATURE in POSE mode "
+                    f"(currently {current_mode})."
+                )
+            return (
+                f"Operator '{op}' needs POSE mode on '{active.name}'; "
+                f"call set_mode(object='{active.name}', mode='POSE')."
+            )
+        return (
+            f"Operator '{op}' needs mode {expected_mode}; currently {current_mode}."
+        )
+    if not selected and module_name in {"object", "transform"}:
+        return f"Operator '{op}' has nothing selected. Pass select=[...] or active=name."
+    if area_type is None or area_type == "EMPTY":
+        return (
+            f"Operator '{op}' was cancelled. No active area context (background/headless). "
+            "If this needs a 3D viewport, run from the viewport or use a higher-level tool."
+        )
+    return (
+        f"Operator '{op}' returned CANCELLED in mode {current_mode} / area {area_type}. "
+        "Check selection, active object type, and required mode."
+    )
 
 
 register_capability("call_operator", call_operator)

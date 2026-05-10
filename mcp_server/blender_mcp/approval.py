@@ -74,7 +74,7 @@ def _pid_alive(pid: int) -> bool:
 
             PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
             STILL_ACTIVE = 259
-            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined,unused-ignore]
             handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
             if not handle:
                 return False
@@ -144,7 +144,7 @@ async def request_approval(
         payload["code"] = code
 
     try:
-        import httpx  # type: ignore
+        import httpx  # type: ignore[import-untyped,import-not-found,unused-ignore]
     except ImportError:  # pragma: no cover
         return ApprovalOutcome(available=False, error="httpx_missing")
 
@@ -152,7 +152,10 @@ async def request_approval(
     headers = {"Content-Type": "application/json", "X-CSRF": endpoint.csrf}
 
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        # Short connect timeout so a dead extension (stale discovery file)
+        # fails fast rather than hanging for the full read timeout.
+        connect_timeout = httpx.Timeout(connect=5.0, read=timeout, write=5.0, pool=5.0)
+        async with httpx.AsyncClient(timeout=connect_timeout) as client:
             resp = await client.post(url, json=payload, headers=headers)
     except (httpx.HTTPError, asyncio.TimeoutError) as exc:
         log.warning("approval request failed: %s", exc)

@@ -16,21 +16,6 @@ from dataclasses import dataclass
 from threading import Lock
 
 
-class RateLimitExceeded(Exception):
-    """Raised (or returned as an error dict by the server) when the bucket is empty."""
-
-    def __init__(self, tool: str, capacity: int, window_seconds: float, retry_after: float):
-        super().__init__(
-            f"Rate limit exceeded for '{tool}': "
-            f"max {capacity} mutating ops per {window_seconds:.1f}s. "
-            f"Retry after ~{retry_after:.2f}s."
-        )
-        self.tool = tool
-        self.capacity = capacity
-        self.window_seconds = window_seconds
-        self.retry_after = retry_after
-
-
 @dataclass
 class TokenBucket:
     """A standard token bucket: `capacity` tokens, refilling over `window_seconds`."""

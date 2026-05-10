@@ -10,5 +10,6 @@
     },
     "[json]": {
         "editor.tabSize": 2
-    }
+    },
+    "blenderMcp.viewportPreview.enabled": true
 }

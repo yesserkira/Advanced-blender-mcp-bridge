@@ -21,8 +21,13 @@ class BLENDERMCP_OT_start_server(bpy.types.Operator):
 
         prefs.ensure_token()
         main_thread.start()
-        ws_server.start(host=prefs.host, port=prefs.port)
-        self.report({"INFO"}, f"Server started on ws://{prefs.host}:{prefs.port}")
+        bind = prefs.effective_bind_host()
+        ws_server.start(host=bind, port=prefs.port)
+        if bind != prefs.bind_host:
+            blocked = prefs.remote_bind_blocked_reason()
+            self.report({"WARNING"}, f"Server bound to loopback. {blocked or ''}")
+        else:
+            self.report({"INFO"}, f"Server started on ws://{bind}:{prefs.port}")
         return {"FINISHED"}
 
 
@@ -59,7 +64,7 @@ class BLENDERMCP_OT_restart_server(bpy.types.Operator):
 
         prefs.ensure_token()
         main_thread.start()
-        ws_server.start(host=prefs.host, port=prefs.port)
+        ws_server.start(host=prefs.effective_bind_host(), port=prefs.port)
         self.report({"INFO"}, "Server restarted")
         return {"FINISHED"}
 
@@ -85,7 +90,12 @@ class BLENDERMCP_PT_main_panel(bpy.types.Panel):
         row.label(text=status_text, icon=status_icon)
 
         if prefs:
-            layout.label(text=f"{prefs.host}:{prefs.port}")
+            effective = prefs.effective_bind_host() if hasattr(prefs, "effective_bind_host") else prefs.host
+            layout.label(text=f"{effective}:{prefs.port}")
+            if effective != "127.0.0.1":
+                layout.label(text="\u26a0  Remote bind active", icon="ERROR")
+            elif getattr(prefs, "bind_host", "127.0.0.1") != "127.0.0.1":
+                layout.label(text="Loopback (remote bind blocked)", icon="INFO")
 
             # Masked token
             if prefs.token and len(prefs.token) >= 4:

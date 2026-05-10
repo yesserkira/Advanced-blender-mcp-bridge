@@ -1,0 +1,153 @@
+{
+  "$schema_version": 1,
+  "name": "displace-noise",
+  "title": "Displace mesh by noise",
+  "description": "Procedurally displaces every vertex along its normal by a 3D noise field. Strength, scale and seed are exposed.",
+  "group": {
+    "name": "BMCP_DisplaceNoise",
+    "inputs": [
+      {
+        "name": "Geometry",
+        "socket_type": "NodeSocketGeometry"
+      },
+      {
+        "name": "Strength",
+        "socket_type": "NodeSocketFloat",
+        "default_value": 0.25
+      },
+      {
+        "name": "Scale",
+        "socket_type": "NodeSocketFloat",
+        "default_value": 5.0
+      },
+      {
+        "name": "Seed",
+        "socket_type": "NodeSocketInt",
+        "default_value": 0
+      }
+    ],
+    "outputs": [
+      {
+        "name": "Geometry",
+        "socket_type": "NodeSocketGeometry"
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "name": "in",
+        "type": "NodeGroupInput"
+      },
+      {
+        "name": "out",
+        "type": "NodeGroupOutput"
+      },
+      {
+        "name": "position",
+        "type": "GeometryNodeInputPosition"
+      },
+      {
+        "name": "normal",
+        "type": "GeometryNodeInputNormal"
+      },
+      {
+        "name": "seed_vec",
+        "type": "ShaderNodeCombineXYZ"
+      },
+      {
+        "name": "offset_pos",
+        "type": "ShaderNodeVectorMath",
+        "properties": {
+          "operation": "ADD"
+        }
+      },
+      {
+        "name": "noise",
+        "type": "ShaderNodeTexNoise",
+        "properties": {
+          "noise_dimensions": "3D"
+        }
+      },
+      {
+        "name": "centered",
+        "type": "ShaderNodeMath",
+        "properties": {
+          "operation": "SUBTRACT"
+        }
+      },
+      {
+        "name": "scaled",
+        "type": "ShaderNodeMath",
+        "properties": {
+          "operation": "MULTIPLY"
+        }
+      },
+      {
+        "name": "vec_off",
+        "type": "ShaderNodeVectorMath",
+        "properties": {
+          "operation": "SCALE"
+        }
+      },
+      {
+        "name": "set_pos",
+        "type": "GeometryNodeSetPosition"
+      }
+    ],
+    "links": [
+      {
+        "from": "in.Seed",
+        "to": "seed_vec.X"
+      },
+      {
+        "from": "position.Position",
+        "to": "offset_pos.Vector"
+      },
+      {
+        "from": "seed_vec.Vector",
+        "to": "offset_pos.Vector_001"
+      },
+      {
+        "from": "offset_pos.Vector",
+        "to": "noise.Vector"
+      },
+      {
+        "from": "in.Scale",
+        "to": "noise.Scale"
+      },
+      {
+        "from": "noise.Fac",
+        "to": "centered.Value"
+      },
+      {
+        "from": "centered.Value",
+        "to": "scaled.Value"
+      },
+      {
+        "from": "in.Strength",
+        "to": "scaled.Value_001"
+      },
+      {
+        "from": "normal.Normal",
+        "to": "vec_off.Vector"
+      },
+      {
+        "from": "scaled.Value",
+        "to": "vec_off.Scale"
+      },
+      {
+        "from": "in.Geometry",
+        "to": "set_pos.Geometry"
+      },
+      {
+        "from": "vec_off.Vector",
+        "to": "set_pos.Offset"
+      },
+      {
+        "from": "set_pos.Geometry",
+        "to": "out.Geometry"
+      }
+    ]
+  }
+}

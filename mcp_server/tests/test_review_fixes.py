@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import sys
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -80,21 +77,16 @@ async def test_transaction_allows_small_nested_create_objects(monkeypatch):
 
 
 def test_read_only_tools_match_real_tool_names():
-    """Every name in READ_ONLY_TOOLS must correspond to an @mcp.tool() defined
-    in server.py. Catches typos / dead entries."""
-    src = Path(server.__file__).read_text(encoding="utf-8")
-    # Tools are either `async def NAME(` after `@mcp.tool()`, or have an
-    # explicit `@mcp.tool(name="NAME")`.
-    import re
+    """Every name in READ_ONLY_TOOLS must correspond to a tool registered
+    on the FastMCP server. Catches typos / dead entries.
 
-    explicit = set(re.findall(r"@mcp\.tool\(name=\"([a-z_][\w]*)\"\)", src))
-    implicit = set(
-        re.findall(
-            r"@mcp\.tool\(\)\s*\n\s*async\s+def\s+([a-z_][\w]*)",
-            src,
-        )
-    )
-    real_tools = explicit | implicit
+    Uses the runtime tool registry (rather than text-scraping the source
+    file) so it works for tools registered via `@_tool()`, `@_proxy()`,
+    or any future decorator.
+    """
+    import asyncio
+    tools = asyncio.run(server.mcp.list_tools())
+    real_tools = {t.name for t in tools}
     ghosts = READ_ONLY_TOOLS - real_tools
     assert not ghosts, f"READ_ONLY_TOOLS contains tools that don't exist: {ghosts}"
 

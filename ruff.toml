@@ -1,0 +1,15 @@
+# Root ruff config — applies when `ruff check <path>` is run from repo root.
+# Per-project configs (e.g. mcp_server/pyproject.toml [tool.ruff]) take
+# precedence when ruff is invoked inside that subtree.
+
+target-version = "py311"
+line-length = 100
+
+# Vendored third-party code is not ours to lint.
+extend-exclude = [
+    "blender_addon/vendor",
+    "**/vendor",
+    ".venv",
+    "dist",
+    "build",
+]

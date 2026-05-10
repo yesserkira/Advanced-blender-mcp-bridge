@@ -7,10 +7,7 @@ fields changed.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import secrets
-from typing import Any
 
 import bpy
 
@@ -18,11 +15,6 @@ from . import register_capability
 
 
 _SNAPSHOTS: dict[str, dict[str, dict]] = {}
-
-
-def _hash_dict(d: dict) -> str:
-    raw = json.dumps(d, sort_keys=True, default=str)
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def _capture() -> dict[str, dict]:
@@ -97,15 +89,3 @@ def scene_diff(args: dict) -> dict:
 
 
 register_capability("scene_diff", scene_diff)
-
-
-def scene_snapshot_clear(args: dict) -> dict:
-    """Drop a stored snapshot."""
-    snap_id = args.get("snapshot_id")
-    if snap_id and snap_id in _SNAPSHOTS:
-        del _SNAPSHOTS[snap_id]
-        return {"snapshot_id": snap_id, "removed": True}
-    return {"snapshot_id": snap_id, "removed": False}
-
-
-register_capability("scene_snapshot_clear", scene_snapshot_clear)

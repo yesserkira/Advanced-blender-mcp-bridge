@@ -18,6 +18,26 @@ export interface CallOptions {
   op: string;
   args?: Record<string, unknown>;
   timeoutMs?: number;
+  /**
+   * Total attempts (including the first). Defaults to 2. Only retries on
+   * transient connection errors (`ECONNREFUSED`, `ETIMEDOUT`, plain timeout)
+   * — auth failures, bad-frame errors and other server-side rejections are
+   * never retried.
+   */
+  retries?: number;
+}
+
+/** Errors that are safe to retry. Auth/protocol errors are NOT in this list. */
+export function isTransientError(err: unknown): boolean {
+  if (!(err instanceof Error)) { return false; }
+  const msg = err.message;
+  const code = (err as NodeJS.ErrnoException).code;
+  return (
+    code === 'ECONNREFUSED' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNRESET' ||
+    msg === 'WebSocket request timed out'
+  );
 }
 
 export async function call(opts: CallOptions): Promise<WsResponse> {
@@ -28,7 +48,23 @@ export async function call(opts: CallOptions): Promise<WsResponse> {
     args: opts.args ?? {},
     auth: opts.token,
   });
-  return wsRequest(opts.host, opts.port, payload, opts.timeoutMs ?? 15_000);
+  const timeoutMs = opts.timeoutMs ?? 15_000;
+  const attempts = Math.max(1, opts.retries ?? 2);
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await wsRequest(opts.host, opts.port, payload, timeoutMs);
+    } catch (err: unknown) {
+      lastErr = err;
+      if (i === attempts - 1 || !isTransientError(err)) {
+        throw err;
+      }
+      // Tiny backoff — enough to skip an in-flight Blender restart.
+      await new Promise((r) => setTimeout(r, 250 * (i + 1)));
+    }
+  }
+  // Unreachable, but TS needs a return.
+  throw lastErr;
 }
 
 export function wsRequest(
@@ -130,7 +166,7 @@ export function wsRequest(
   });
 }
 
-function encodeTextFrame(text: string): Buffer {
+export function encodeTextFrame(text: string): Buffer {
   const data = Buffer.from(text, 'utf8');
   const len = data.length;
   let header: Buffer;
@@ -163,7 +199,7 @@ function encodeCloseFrame(): Buffer {
   return Buffer.concat([Buffer.from([0x88, 0x80]), mask]);
 }
 
-function decodeFrame(buf: Buffer): { text: string; rest: Buffer } | undefined {
+export function decodeFrame(buf: Buffer): { text: string; rest: Buffer } | undefined {
   if (buf.length < 2) { return undefined; }
   const byte1 = buf[0];
   const byte2 = buf[1];
@@ -190,11 +226,4 @@ function decodeFrame(buf: Buffer): { text: string; rest: Buffer } | undefined {
     text: payload.toString('utf8'),
     rest: buf.subarray(offset + payloadLen),
   };
-}
-
-// Resolve connection settings from configuration / environment.
-export function getConnectionConfig(): { host: string; port: number; token: string } {
-  // vscode is not imported here to keep this module test-friendly; the caller
-  // passes the values in through getConfiguration().
-  throw new Error('Use vscode workspace configuration in the caller');
 }

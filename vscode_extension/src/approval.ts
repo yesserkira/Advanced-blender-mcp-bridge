@@ -26,16 +26,47 @@ interface ApprovalResult {
 // ---------------------------------------------------------------------------
 
 export class ApprovalServer {
-  private readonly _context: vscode.ExtensionContext;
   private _server: http.Server | null = null;
   private _sessionApprovals: Set<string> = new Set();
   private _csrf: string = '';
   private _port: number = 0;
   private _discoveryFile: string | null = null;
 
-  constructor(context: vscode.ExtensionContext) {
-    this._context = context;
+  // ---- rate limiting ------------------------------------------------------
+  // Token bucket per remote address. Loopback only, so this is purely
+  // defence-in-depth against a runaway local client (or an exploit that
+  // tries to brute-force CSRF). Cap is generous for normal use.
+  private static readonly RATE_BURST = 5;       // tokens
+  private static readonly RATE_REFILL_MS = 1000; // 1 token per second
+  private _buckets: Map<string, { tokens: number; ts: number }> = new Map();
+
+  /** Returns true if the request from `peer` is allowed to proceed. */
+  private _checkRate(peer: string): boolean {
+    const now = Date.now();
+    const bucket = this._buckets.get(peer) ?? { tokens: ApprovalServer.RATE_BURST, ts: now };
+    const elapsed = now - bucket.ts;
+    const refill = Math.floor(elapsed / ApprovalServer.RATE_REFILL_MS);
+    if (refill > 0) {
+      bucket.tokens = Math.min(ApprovalServer.RATE_BURST, bucket.tokens + refill);
+      bucket.ts = now;
+    }
+    if (bucket.tokens <= 0) {
+      this._buckets.set(peer, bucket);
+      return false;
+    }
+    bucket.tokens -= 1;
+    this._buckets.set(peer, bucket);
+    // Cheap eviction: keep map small.
+    if (this._buckets.size > 64) {
+      const cutoff = now - 60_000;
+      for (const [k, v] of this._buckets) {
+        if (v.ts < cutoff) { this._buckets.delete(k); }
+      }
+    }
+    return true;
   }
+
+  constructor() { }
 
   /** Get the CSRF token (random per session). */
   getCsrf(): string { return this._csrf; }
@@ -126,11 +157,28 @@ export class ApprovalServer {
   }
 
   private _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-    // SECURITY: reject non-loopback peers (defence in depth — we already bind 127.0.0.1)
+    // SECURITY: reject non-loopback peers (defence in depth — we already bind 127.0.0.1).
+    //
+    // Phase 9 note: even when the user has opted into a *remote Blender host*
+    // (i.e. the WebSocket add-on inside Blender binds to 0.0.0.0), this HTTP
+    // approval endpoint MUST stay loopback-only. It exists to confirm
+    // approvals coming from the local MCP server process, which always runs
+    // on the same machine as VS Code. Loosening this check would let any
+    // network-reachable peer mint approvals on the user's behalf.
     const peer = req.socket.remoteAddress ?? '';
     if (peer && peer !== '127.0.0.1' && peer !== '::1' && peer !== '::ffff:127.0.0.1') {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Forbidden: loopback only' }));
+      return;
+    }
+
+    // SECURITY: per-peer rate limit (token bucket).
+    if (!this._checkRate(peer || 'unknown')) {
+      res.writeHead(429, {
+        'Content-Type': 'application/json',
+        'Retry-After': '1',
+      });
+      res.end(JSON.stringify({ error: 'Too many requests' }));
       return;
     }
 
@@ -180,6 +228,13 @@ export class ApprovalServer {
       res.end(JSON.stringify({ error: 'request_id is required and must be a non-empty string' }));
       return;
     }
+    // SECURITY: require unguessable request_id so an attacker can't replay
+    // approvals for an arbitrary action by guessing the id.
+    if (body.request_id.length < 16) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'request_id must be at least 16 characters' }));
+      return;
+    }
     if (!body.tool || typeof body.tool !== 'string') {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'tool is required' }));
@@ -197,7 +252,7 @@ export class ApprovalServer {
 
     // Show approval webview and wait for user decision
     try {
-      const result = await ApprovalPanel.createOrShow(this._context, body);
+      const result = await ApprovalPanel.createOrShow(body);
 
       if (result.remember_session) {
         this._sessionApprovals.add(argsKey);
@@ -222,15 +277,11 @@ export class ApprovalServer {
 class ApprovalPanel {
   private static readonly viewType = 'blenderMcpApproval';
 
-  private readonly _panel: vscode.WebviewPanel;
   private readonly _disposables: vscode.Disposable[] = [];
 
-  private constructor(panel: vscode.WebviewPanel) {
-    this._panel = panel;
-  }
+  private constructor() { }
 
   static createOrShow(
-    context: vscode.ExtensionContext,
     data: ApprovalRequest,
   ): Promise<ApprovalResult> {
     const column = vscode.ViewColumn.Beside;
@@ -245,7 +296,7 @@ class ApprovalPanel {
       },
     );
 
-    const approvalPanel = new ApprovalPanel(panel);
+    const approvalPanel = new ApprovalPanel();
     panel.webview.html = getWebviewContent(panel.webview, data.tool, data.args, data.code);
 
     return new Promise<ApprovalResult>((resolve) => {
@@ -369,14 +420,50 @@ export function getWebviewContent(
   const argsJson = escapeHtml(JSON.stringify(args, null, 2));
   const toolName = escapeHtml(tool);
 
-  const codeSection = code
-    ? `<div class="warning-banner">
-        <span class="warning-icon">⚠️</span>
-        <strong>This action will execute Python code in Blender</strong>
+  // Code preview: collapse long scripts to first 3 lines (or 500 chars on
+  // a single very-long line) with a toggle to reveal the rest. Keeps the
+  // approval modal compact for typical execute_python payloads.
+  const PREVIEW_LINES = 3;
+  const PREVIEW_MAX_CHARS = 500;
+  let codeSection = '';
+  if (code) {
+    const lines = code.split('\n');
+    const totalLines = lines.length;
+    let truncated = false;
+    let previewText: string;
+    if (totalLines > PREVIEW_LINES) {
+      previewText = lines.slice(0, PREVIEW_LINES).join('\n');
+      truncated = true;
+    } else {
+      previewText = code;
+    }
+    if (previewText.length > PREVIEW_MAX_CHARS) {
+      previewText = previewText.slice(0, PREVIEW_MAX_CHARS) + '\u2026';
+      truncated = true;
+    }
+    const bannerText = truncated
+      ? `Showing first ${Math.min(PREVIEW_LINES, totalLines)} of ${totalLines} lines &mdash; review full code before approving`
+      : 'This action will execute Python code in Blender';
+    const fullBlock = truncated
+      ? `<pre class="code-block code-full hidden" id="codeFull"><code>${escapeHtml(code)}</code></pre>`
+      : '';
+    const toggleRow = truncated
+      ? `<div class="code-actions">
+          <button type="button" class="btn-link" id="toggleCodeBtn" aria-expanded="false" aria-controls="codeFull">Show full code</button>
+          <button type="button" class="btn-link" id="copyCodeBtn">Copy to clipboard</button>
+        </div>`
+      : `<div class="code-actions">
+          <button type="button" class="btn-link" id="copyCodeBtn">Copy to clipboard</button>
+        </div>`;
+    codeSection = `<div class="warning-banner">
+        <span class="warning-icon">\u26A0\uFE0F</span>
+        <strong>${bannerText}</strong>
       </div>
       <h3>Python Code</h3>
-      <pre class="code-block"><code>${escapeHtml(code)}</code></pre>`
-    : '';
+      <pre class="code-block code-preview" id="codePreview"><code>${escapeHtml(previewText)}</code></pre>
+      ${fullBlock}
+      ${toggleRow}`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -479,6 +566,32 @@ export function getWebviewContent(
       background: var(--vscode-textLink-foreground);
       color: var(--vscode-editor-background);
     }
+    .code-full.hidden,
+    .code-preview.hidden {
+      display: none;
+    }
+    .code-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+    }
+    .btn-link {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--vscode-textLink-foreground);
+      font-size: 12px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .btn-link:hover {
+      color: var(--vscode-textLink-activeForeground);
+    }
+    .copy-flash {
+      color: var(--vscode-charts-green);
+      text-decoration: none;
+      cursor: default;
+    }
   </style>
 </head>
 <body>
@@ -510,6 +623,50 @@ export function getWebviewContent(
     document.getElementById('sessionBtn').addEventListener('click', () => {
       vscode.postMessage({ command: 'approve_session' });
     });
+
+    const toggleBtn = document.getElementById('toggleCodeBtn');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const full = document.getElementById('codeFull');
+        const preview = document.getElementById('codePreview');
+        if (!full || !preview) { return; }
+        const expanded = !full.classList.contains('hidden');
+        if (expanded) {
+          full.classList.add('hidden');
+          preview.classList.remove('hidden');
+          toggleBtn.textContent = 'Show full code';
+          toggleBtn.setAttribute('aria-expanded', 'false');
+        } else {
+          full.classList.remove('hidden');
+          preview.classList.add('hidden');
+          toggleBtn.textContent = 'Hide full code';
+          toggleBtn.setAttribute('aria-expanded', 'true');
+        }
+      });
+    }
+
+    const copyBtn = document.getElementById('copyCodeBtn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        // Pull raw text from the (possibly hidden) full block when present,
+        // otherwise the preview block. textContent reverses HTML entity
+        // escaping so we get the original source back.
+        const src = document.getElementById('codeFull') || document.getElementById('codePreview');
+        if (!src) { return; }
+        try {
+          await navigator.clipboard.writeText(src.textContent || '');
+          const original = copyBtn.textContent;
+          copyBtn.textContent = 'Copied!';
+          copyBtn.classList.add('copy-flash');
+          setTimeout(() => {
+            copyBtn.textContent = original;
+            copyBtn.classList.remove('copy-flash');
+          }, 1500);
+        } catch {
+          copyBtn.textContent = 'Copy failed';
+        }
+      });
+    }
   </script>
 </body>
 </html>`;

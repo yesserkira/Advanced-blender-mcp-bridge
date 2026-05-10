@@ -5,3 +5,9 @@ node_modules/**
 tsconfig.json
 **/*.ts
 **/*.map
+scripts/**
+test/**
+esbuild.mjs
+.vscode-test.mjs
+.eslintrc.json
+!resources/**

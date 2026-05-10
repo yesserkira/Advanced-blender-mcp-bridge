@@ -6,28 +6,18 @@ Loads .blendermcp.json from the workspace and enforces tool/path/resource restri
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
+from . import tool_meta
 from .rate_limit import TokenBucket
 
 logger = logging.getLogger("blender_mcp.policy")
 
 # Tools that observe Blender state without changing it. Excluded from the
 # mutating-rate-limiter so a status panel polling `ping` cannot be throttled.
-# NOTE: keep in sync with @mcp.tool() definitions in server.py.
-READ_ONLY_TOOLS: frozenset[str] = frozenset(
-    {
-        "ping",
-        "query",
-        "list",
-        "describe_api",
-        "get_audit_log",
-        "get_property",
-        "list_assets",
-        "viewport_screenshot",
-        "scene_diff",
-        "list_checkpoints",
-    }
-)
+# Sourced from tool_meta.TOOL_META (single source of truth, v2.2+).
+READ_ONLY_TOOLS: frozenset[str] = tool_meta.read_only_tools()
+
 
 def is_mutating(tool_name: str) -> bool:
     """True if calling `tool_name` may modify the Blender scene."""
@@ -41,11 +31,24 @@ _DEFAULT_POLICY = {
     "max_polys": 1_000_000,
     "max_resolution": 4096,
     "snapshot_threshold": 5,
-    "confirm_required": ["execute_python", "delete_object"],
+    "confirm_required": ["delete_object"],
     "rate_limit": {
         "mutating_ops_per_window": 50,
         "window_seconds": 10.0,
     },
+    # Phase 9: remote-Blender controls.
+    #
+    # ``allowed_remote_hosts``:
+    #   None  → no extra restriction (loopback always allowed; remote allowed)
+    #   []    → strict: only loopback hosts may be the BLENDER_MCP_URL target
+    #   list  → only the listed hosts (case-insensitive) plus loopback
+    #
+    # ``require_tls``: when True, the MCP server refuses to connect to a
+    # non-loopback BLENDER_MCP_URL that uses plain ``ws://``. Use ``wss://``
+    # via stunnel / SSH tunnel termination. Loopback URLs are always
+    # exempt (TLS adds no value to a loopback socket).
+    "allowed_remote_hosts": None,
+    "require_tls": False,
 }
 
 
@@ -75,8 +78,13 @@ class RateLimitDenied(PolicyDenied):
 class Policy:
     """Runtime policy loaded from .blendermcp.json."""
 
-    def __init__(self, config: dict | None = None):
-        cfg = dict(_DEFAULT_POLICY)
+    # Class-level guard so the "allowed_roots is empty" warning is emitted
+    # at most once per process even if multiple Policy instances are created
+    # (tests do this often).
+    _empty_roots_warned: bool = False
+
+    def __init__(self, config: dict[str, Any] | None = None):
+        cfg: dict[str, Any] = dict(_DEFAULT_POLICY)
         if config:
             cfg.update(config)
 
@@ -87,7 +95,7 @@ class Policy:
         self.max_resolution: int = cfg.get("max_resolution", 4096)
         self.snapshot_threshold: int = cfg.get("snapshot_threshold", 5)
         self.confirm_required: list[str] = cfg.get("confirm_required", [])
-        self.rate_limit: dict = cfg.get(
+        self.rate_limit: dict[str, Any] = cfg.get(
             "rate_limit",
             {"mutating_ops_per_window": 50, "window_seconds": 10.0},
         )
@@ -97,6 +105,25 @@ class Policy:
             self.rate_limit.setdefault("window_seconds", 10.0)
         self._bucket: TokenBucket | None = None
 
+        # Phase 9 connection controls.
+        raw_hosts = cfg.get("allowed_remote_hosts")
+        if raw_hosts is None:
+            self.allowed_remote_hosts: list[str] | None = None
+        else:
+            self.allowed_remote_hosts = [str(h).strip().lower() for h in raw_hosts if str(h).strip()]
+        self.require_tls: bool = bool(cfg.get("require_tls", False))
+
+        # P1-2: An empty allowed_roots list means validate_path() permits
+        # ANY path the Blender process can read — effectively no jail. Warn
+        # loudly once so users don't ship that by accident.
+        if not self.allowed_roots and not Policy._empty_roots_warned:
+            logger.warning(
+                "Policy: allowed_roots is empty — file paths (import_asset, "
+                "link_blend, list_assets) will NOT be jailed. Set "
+                "allowed_roots in .blendermcp.json to restrict access.",
+            )
+            Policy._empty_roots_warned = True
+
     def get_rate_limiter(self) -> TokenBucket:
         """Lazily create a TokenBucket sized from policy.rate_limit."""
         if self._bucket is None:
@@ -104,6 +131,61 @@ class Policy:
             window = float(self.rate_limit.get("window_seconds", 10.0))
             self._bucket = TokenBucket(capacity=max(1, cap), window_seconds=max(0.1, window))
         return self._bucket
+
+    # Phase 9: connection-target validation -----------------------------------
+    _LOOPBACK_HOSTS: frozenset[str] = frozenset({
+        "127.0.0.1", "::1", "localhost", "0:0:0:0:0:0:0:1",
+    })
+
+    @classmethod
+    def _is_loopback(cls, host: str) -> bool:
+        h = (host or "").strip().lower()
+        if h in cls._LOOPBACK_HOSTS:
+            return True
+        # 127.0.0.0/8
+        parts = h.split(".")
+        if len(parts) == 4 and parts[0] == "127":
+            try:
+                return all(0 <= int(p) <= 255 for p in parts)
+            except ValueError:
+                return False
+        return False
+
+    def validate_connection_url(self, url: str) -> None:
+        """Raise ``PolicyDenied`` if ``url`` is forbidden by policy.
+
+        Enforces ``allowed_remote_hosts`` and ``require_tls``. Always
+        permits loopback regardless of ``allowed_remote_hosts``.
+        """
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(url)
+        except Exception as e:  # pragma: no cover \u2014 urlparse is very permissive
+            raise PolicyDenied(f"Could not parse BLENDER_MCP_URL: {e}") from e
+        scheme = (parsed.scheme or "").lower()
+        host = (parsed.hostname or "").lower()
+        if scheme not in ("ws", "wss"):
+            raise PolicyDenied(
+                f"Unsupported scheme '{scheme}' in BLENDER_MCP_URL; expected ws:// or wss://.",
+            )
+        if self._is_loopback(host):
+            return  # loopback always OK
+        # Non-loopback target.
+        if self.allowed_remote_hosts is not None and host not in self.allowed_remote_hosts:
+            raise PolicyDenied(
+                f"Remote host '{host}' is not in policy.allowed_remote_hosts.",
+                hint="Add the host to allowed_remote_hosts in your policy file, "
+                     "or use SSH port forwarding to expose Blender on loopback.",
+                code="POLICY_REMOTE_HOST_DENIED",
+            )
+        if self.require_tls and scheme != "wss":
+            raise PolicyDenied(
+                f"Policy requires TLS (wss://) for remote Blender hosts; got '{scheme}://{host}'.",
+                hint="Terminate TLS in front of Blender (stunnel, nginx, Caddy) or "
+                     "use an SSH tunnel that lands on loopback.",
+                code="POLICY_REQUIRE_TLS",
+            )
 
     @classmethod
     def load(cls, path: str | None = None) -> "Policy":
@@ -128,7 +210,7 @@ class Policy:
             logger.warning("Failed to load policy from %s: %s", path, e)
             return cls()
 
-    def require(self, tool_name: str):
+    def require(self, tool_name: str) -> None:
         """Check if a tool is allowed. Raises PolicyDenied / RateLimitDenied if not."""
         if tool_name in self.denied_tools:
             raise PolicyDenied(
@@ -182,7 +264,7 @@ class Policy:
             hint=f"Allowed roots: {', '.join(self.allowed_roots)}",
         )
 
-    def check_poly_count(self, count: int):
+    def check_poly_count(self, count: int) -> None:
         """Raise PolicyDenied if poly count exceeds limit."""
         if count > self.max_polys:
             raise PolicyDenied(
@@ -190,7 +272,7 @@ class Policy:
                 hint="Increase max_polys in .blendermcp.json",
             )
 
-    def check_resolution(self, w: int, h: int):
+    def check_resolution(self, w: int, h: int) -> None:
         """Raise PolicyDenied if resolution exceeds limit."""
         if w > self.max_resolution or h > self.max_resolution:
             raise PolicyDenied(
@@ -240,7 +322,7 @@ _MODIFIER_MULTIPLIERS: dict[str, float] = {
 }
 
 
-def _estimate_one(spec: dict) -> int:
+def _estimate_one(spec: dict[str, Any]) -> int:
     """Estimate polygons for a single create_objects spec."""
     if not isinstance(spec, dict):
         return 0
@@ -267,7 +349,7 @@ def _estimate_one(spec: dict) -> int:
     return base
 
 
-def estimate_polys(specs: list[dict]) -> int:
+def estimate_polys(specs: list[dict[str, Any]]) -> int:
     """Estimate total polygons for a list of create_objects specs."""
     if not isinstance(specs, list):
         return 0
