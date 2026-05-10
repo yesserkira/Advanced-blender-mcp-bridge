@@ -6,6 +6,7 @@ A local, secure bridge that lets AI chat agents inside VS Code (Copilot Chat, Cl
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Blender 4.2+](https://img.shields.io/badge/Blender-4.2%2B-orange.svg)](https://www.blender.org/)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00.svg?logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/yesserkiraa)
 
 ## Components
 
@@ -45,3 +46,9 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) and the
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Support the project
+
+If this project saves you time or you'd like to help fund continued development,
+you can [buy me a coffee ☕](https://www.buymeacoffee.com/yesserkiraa). Every bit
+helps and is hugely appreciated — thank you!
