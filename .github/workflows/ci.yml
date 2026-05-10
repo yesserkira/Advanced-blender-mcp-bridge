@@ -83,8 +83,6 @@ jobs:
     # Headless Blender exercises real bpy ops (capabilities/composer/snapshot/
     # geonodes). The fake-WS suite already covers every MCP wrapper; this job
     # verifies the add-on side actually runs against Blender's API.
-    # Advisory: tolerated to fail while integration suite stabilises on CI.
-    continue-on-error: true
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

@@ -62,5 +62,12 @@ def main() -> int:
 
 if __name__ == "__main__":
     rc = main()
+    # Make sure pytest's terminal report (FAILURES section, summary) is
+    # flushed before we hard-exit — os._exit skips atexit/buffered stdio.
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
     # Blender ignores sys.exit on some platforms; use os._exit to be safe.
     os._exit(rc if isinstance(rc, int) else 1)
