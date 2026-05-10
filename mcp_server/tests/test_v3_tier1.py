@@ -90,11 +90,13 @@ async def test_create_armature_with_bones():
 
 
 @pytest.mark.asyncio
-async def test_load_image():
+async def test_load_image(tmp_path):
     import os
-    out = await server.load_image(path="C:/tmp/x.png", colorspace="Non-Color")
+    img = tmp_path / "x.png"
+    img.write_bytes(b"")  # validate_path doesn't require existence, but be safe
+    out = await server.load_image(path=str(img), colorspace="Non-Color")
     # validate_path normalises the path, so compare with normpath on both sides.
-    assert os.path.normpath(out["filepath"]) == os.path.normpath("C:/tmp/x.png")
+    assert os.path.normpath(out["filepath"]) == os.path.normpath(str(img))
 
 
 @pytest.mark.asyncio

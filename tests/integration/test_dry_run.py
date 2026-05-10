@@ -10,8 +10,8 @@ from conftest import call
 def test_dry_run_create_objects_no_mutation():
     n_before = len(bpy.data.objects)
     out = call("create_objects", {"specs": [
-        {"kind": "primitive", "primitive": "cube", "name": "X1"},
-        {"kind": "primitive", "primitive": "cube", "name": "X2"},
+        {"kind": "cube", "name": "X1"},
+        {"kind": "cube", "name": "X2"},
     ]}, dry_run=True)
     assert out["dry_run"] is True
     assert "would" in out
@@ -21,7 +21,7 @@ def test_dry_run_create_objects_no_mutation():
 def test_dry_run_delete_object_keeps_object():
     # First create a real one
     call("create_objects", {"specs": [
-        {"kind": "primitive", "primitive": "cube", "name": "Victim"},
+        {"kind": "cube", "name": "Victim"},
     ]})
     assert "Victim" in bpy.data.objects
     out = call("object.delete", {"name": "Victim"}, dry_run=True)

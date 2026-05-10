@@ -30,7 +30,7 @@ def test_snapshot_hash_stable_across_no_op():
 def test_snapshot_hash_changes_after_create():
     h1 = call("scene.snapshot", {})["hash"]
     call("create_objects", {"specs": [
-        {"kind": "primitive", "primitive": "cube", "name": "DiffMarker"},
+        {"kind": "cube", "name": "DiffMarker"},
     ]})
     h2 = call("scene.snapshot", {})["hash"]
     assert h1 != h2
