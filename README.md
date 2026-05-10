@@ -50,5 +50,5 @@ MIT — see [LICENSE](LICENSE).
 ## Support the project
 
 If this project saves you time or you'd like to help fund continued development,
-you can [buy me a coffee ☕]([https://www.buymeacoffee.com/yesserkiraa](https://www.patreon.com/posts/advanced-blender-157884874?utm_medium=clipboard_copy&utm_source=copyLink&utm_campaign=postshare_creator&utm_content=join_link)). Every bit
+you can [buy me a coffee](https://www.patreon.com/posts/advanced-blender-157884874?utm_medium=clipboard_copy&utm_source=copyLink&utm_campaign=postshare_creator&utm_content=join_link) ☕.  Every bit
 helps and is hugely appreciated — thank you!
