@@ -25,7 +25,7 @@ import os
 import shutil
 import sys
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable
 
 # ---------------------------------------------------------------------------
 # Client registry
@@ -107,7 +107,9 @@ def _continue_path() -> str | None:
 
 
 def _exists_parent(p: str | None) -> bool:
-    return bool(p) and os.path.isdir(os.path.dirname(p))  # type: ignore[arg-type]
+    if not p:
+        return False
+    return os.path.isdir(os.path.dirname(p))
 
 
 CLIENTS: list[ClientSpec] = [
@@ -158,7 +160,7 @@ def resolve_launch_command() -> tuple[str, list[str]]:
 # Snippet builder
 # ---------------------------------------------------------------------------
 
-def build_server_entry(shape: str, command: str, args: list[str]) -> dict:
+def build_server_entry(shape: str, command: str, args: list[str]) -> dict[str, Any]:
     """Return the per-client server entry for the given config shape."""
     if shape == "vscode":
         return {
@@ -188,7 +190,7 @@ def patch_config(
     args: list[str],
     server_name: str = "blender",
     backup: bool = True,
-) -> dict:
+) -> dict[str, Any]:
     """Idempotently merge our server entry into ``path``.
 
     - Creates the file (and parent dirs) if missing.
@@ -201,7 +203,7 @@ def patch_config(
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
     existed = os.path.exists(path)
-    data: dict = {}
+    data: dict[str, Any] = {}
     if existed:
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -258,7 +260,7 @@ def install(
     *,
     print_only: bool = False,
     server_name: str = "blender",
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Install the server entry into one or more clients.
 
     Args:
@@ -277,7 +279,7 @@ def install(
         wanted = {k.lower() for k in selected_keys}
         targets = [c for c in CLIENTS if c.key in wanted]
 
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
     for client in targets:
         path = client.path()
         if not path:
@@ -317,7 +319,7 @@ def install(
 # CLI
 # ---------------------------------------------------------------------------
 
-def _format_result(r: dict) -> str:
+def _format_result(r: dict[str, Any]) -> str:
     name = r.get("name", r.get("client", "?"))
     action = r.get("action", "?")
     if action == "print":

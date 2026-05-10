@@ -5,6 +5,12 @@ Every mutator accepts a single args dict OR an "items" list for batched
 execution under one undo step.
 """
 
+# Tool functions decorated with @_proxy(...) intentionally have empty
+# bodies (docstring only) — the decorator replaces them with a wrapper
+# that introspects the signature and dispatches to Blender. Without this
+# directive mypy --strict reports ~60 spurious [empty-body] errors.
+# mypy: disable-error-code = "empty-body"
+
 import asyncio
 import json
 import logging

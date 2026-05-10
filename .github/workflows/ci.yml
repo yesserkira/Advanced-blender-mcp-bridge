@@ -28,8 +28,6 @@ jobs:
         run: uv run ruff check blender_mcp tests
       - name: Type check
         working-directory: mcp_server
-        # Pre-existing mypy errors are tracked separately; advisory only.
-        continue-on-error: true
         run: uv run mypy blender_mcp --ignore-missing-imports
       - name: Test
         working-directory: mcp_server
